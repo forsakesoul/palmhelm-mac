@@ -1,0 +1,104 @@
+name: PalmhelmMac
+options:
+  bundleIdPrefix: com.forsakesoul
+  deploymentTarget:
+    macOS: "15.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    # Apple Development 签名 + Team ID：钥匙串的授权分区按 Team ID 记，跨构建稳定，「始终允许」才会被记住。
+    # 以前用无 Team ID 的自签证书，分区按 cdhash，每次重建都变，所以每次都弹钥匙串授权。没有该开发者账号的机器改回 Automatic / "-"（测试用 CODE_SIGN_IDENTITY=- 并放到独立的 derivedDataPath）。
+    CODE_SIGN_STYLE: Automatic
+    CODE_SIGN_IDENTITY: "Apple Development"
+    DEVELOPMENT_TEAM: 9F9569KYQB
+    # 构建号单一来源（公开仓只有一个提交，提交数不再单调，不能再用 git rev-list --count）。发布时递增此值；脚本默认读取它，可用 PALMHELM_BUILD_NUMBER 覆盖。
+    CURRENT_PROJECT_VERSION: "157"
+    # 原先为 NO 是因为无 Team ID 的签名下 dyld 会拒绝加载 Xcode 拆出的 PalmhelmMac.debug.dylib（"different Team IDs"）；有 Team ID 后这个原因不再成立。
+    # 仍保持 NO（单一可执行文件，不依赖 Debug dylib 加载）：改 YES 需要实机启动验证，本包不运行 App，未验证。
+    ENABLE_DEBUG_DYLIB: "NO"
+    # 字符串抽取（#63 批次 3）：SwiftUI 字面量与 String(localized:) 进入 PalmhelmMac/Localizable.xcstrings（中文原文作 key）。
+    SWIFT_EMIT_LOC_STRINGS: YES
+    LOCALIZATION_PREFERS_STRING_CATALOGS: YES
+packages:
+  # 共享的 Bridge 客户端（模型、HTTP/SSE、SPKI 固定、用量解码）。固定到不可移动的 tag。
+  PalmhelmKit:
+    url: https://github.com/forsakesoul/palmhelm-kit.git
+    exactVersion: 0.0.1
+targets:
+  PalmhelmMac:
+    type: application
+    platform: macOS
+    productName: Palmhelm
+    sources:
+      - path: PalmhelmMac
+        excludes: [Resources/**]
+      # 内置 Bridge 单文件（由 scripts/bundle-bridge.sh 取得并校验，不入库）
+      - path: PalmhelmMac/Resources/palmhelm-bridge
+        type: file
+        buildPhase: resources
+      # 两份许可文件随 Bridge 一起取得并校验（scripts/bundle-bridge.sh），复制到 App 资源中
+      - path: PalmhelmMac/Resources/LICENSE-palmhelm-bridge.txt
+        type: file
+        buildPhase: resources
+      - path: PalmhelmMac/Resources/THIRD_PARTY_NOTICES.txt
+        type: file
+        buildPhase: resources
+    dependencies:
+      - package: PalmhelmKit
+    info:
+      path: PalmhelmMac/Info.plist
+      properties:
+        CFBundleDisplayName: Palmhelm
+        CFBundleName: Palmhelm
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)" # 构建号取自上面的 CURRENT_PROJECT_VERSION
+        CFBundleDevelopmentRegion: en # 源语言 en（#63）；界面语言跟随系统，日期与数字格式按系统地区
+        CFBundleLocalizations: [en, zh-Hans] # ja 暂无合规译文，回退 en（O1-293）
+        LSMinimumSystemVersion: "15.0"
+        NSHumanReadableCopyright: ""
+        CFBundleURLTypes:
+          - CFBundleURLSchemes: [palmhelm]
+            CFBundleURLName: com.forsakesoul.palmhelm.mac
+    entitlements:
+      path: PalmhelmMac/PalmhelmMac.entitlements
+      properties:
+        # 不进沙盒：要启动内置 Bridge 子进程、读本机 agent 会话记录、调用 herdr。
+        com.apple.security.app-sandbox: false
+        com.apple.security.network.client: true
+        com.apple.security.network.server: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.forsakesoul.palmhelm.mac
+        PRODUCT_NAME: Palmhelm
+        PRODUCT_MODULE_NAME: PalmhelmMac
+        ENABLE_HARDENED_RUNTIME: YES
+        CODE_SIGN_ENTITLEMENTS: PalmhelmMac/PalmhelmMac.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+  PalmhelmMacTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: PalmhelmMacTests
+    dependencies:
+      - target: PalmhelmMac
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.forsakesoul.palmhelm.mac.tests
+schemes:
+  PalmhelmMac:
+    build:
+      targets:
+        PalmhelmMac: all
+        PalmhelmMacTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      language: zh-Hans
+      region: CN
+      environmentVariables:
+        REINS_TEST_HOST: "1"
+      targets: [PalmhelmMacTests]

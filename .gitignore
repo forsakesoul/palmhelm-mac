@@ -1,0 +1,16 @@
+# Xcode
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xcscmblueprint
+*.moved-aside
+.swiftpm/
+Package.resolved
+*.xcodeproj
+.DS_Store
+# 内置 Bridge 二进制由构建脚本放入，不入库
+PalmhelmMac/Resources/palmhelm-bridge
+PalmhelmMac/Resources/LICENSE-palmhelm-bridge.txt
+PalmhelmMac/Resources/THIRD_PARTY_NOTICES.txt
+.bridge-backup-*
