@@ -1,5 +1,7 @@
 # Palmhelm for Mac
 
+English | [中文](README.zh-CN.md)
+
 Palmhelm for Mac is the desktop side of Palmhelm. It runs the Palmhelm Bridge as a child process and shows the conversations, approval requests, Herdr panes, pairing and devices, usage, and settings for the coding agents (Claude Code, Codex and others) that run in Herdr panes on your Mac. It shares the `PalmhelmKit` package with the iPhone app.
 
 Requirements: an Apple silicon Mac running macOS 15 or later, and [Herdr](https://herdr.dev) with the agents you want to follow running in its panes. Palmhelm only supports agents running in Herdr panes.
