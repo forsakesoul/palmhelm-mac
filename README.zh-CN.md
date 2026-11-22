@@ -49,7 +49,7 @@ Palmhelm for Mac 是 Palmhelm 的桌面端：它把 Bridge 作为子进程运行
 scripts/test-mac.sh -derivedDataPath build/dd-test CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM=
 ```
 
-部分测试需要正在运行的测试 Bridge；除非 `TEST_RUNNER_PALMHELM_E2E_SERVER` 指向它，否则这些测试会被跳过。共享的 `PalmhelmKit` 测试位于 Kit 仓库中。
+部分测试需要正在运行的测试 Bridge；除非 `TEST_RUNNER_PALMHELM_E2E_SERVER` 指向它，否则这些测试会被跳过。承载真实窗口的测试要求测试宿主处于前台，在没有焦点的会话（后台、无界面或远程）里会跳过。共享的 `PalmhelmKit` 测试位于 Kit 仓库中。
 
 ## 目录结构
 

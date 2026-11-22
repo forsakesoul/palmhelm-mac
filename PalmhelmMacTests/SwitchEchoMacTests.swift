@@ -13,7 +13,7 @@ final class SwitchEchoMacTests: XCTestCase {
     }
 
     private func ack(_ key: String, _ text: String) throws -> HistoryItem {
-        try JSONDecoder().decode(HistoryItem.self, from: Data(#"{"seq":5,"uuid":"ack:\#(key)","text":"\#(text)","kind":"text"}"#.utf8))
+        try JSONDecoder().decode(HistoryItem.self, from: Data(#"{"seq":5,"uuid":"ack:\#(key)","text":"\#(text)","kind":"text","replyTo":"\#(key)"}"#.utf8))
     }
 
     func testSwitchEchoResolvesWhenTheSwitchReceiptArrives() throws {

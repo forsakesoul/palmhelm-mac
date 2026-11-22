@@ -91,6 +91,11 @@ final class QueueSemanticsParentHostTests: XCTestCase {
         win.contentView = hv
         NSApp.activate(ignoringOtherApps: true)
         win.makeKeyAndOrderFront(nil)
+        // 激活读取与无障碍树都要求窗口成为 key（应用在前台）。没有前台焦点的会话（后台 / 无界面 / 远程）里窗口永远不会 key，
+        // 视图不激活、无障碍树为空，前置条件无法满足；这种环境下跳过并写明原因，不伪造激活（生产的激活入口不被旁路）。
+        var keyWaited = 0.0
+        while keyWaited < 2, !(NSApp.isActive && win.isKeyWindow) { await settle(0.25); keyWaited += 0.25 }
+        try XCTSkipUnless(NSApp.isActive && win.isKeyWindow, "测试宿主没有前台焦点，窗口无法成为 key；请在有焦点的桌面会话中运行这组用例")
         // 骨架门禁（transcriptSettled）：生产在首个应答到达时把 confirmedToken 设为当前激活（MacSession+ActiveTranscript:99）；
         // 宿主里没有网络，这里等视图真正激活后做同一件事。不删 guard、不用遮罩；再等页面上真有内容才继续。
         var waited = 0.0

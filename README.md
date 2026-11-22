@@ -51,7 +51,7 @@ Run the Mac tests through the script, which gives the test host its own bundle i
 scripts/test-mac.sh -derivedDataPath build/dd-test CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM=
 ```
 
-Some tests need a running test Bridge and are skipped unless `TEST_RUNNER_PALMHELM_E2E_SERVER` points to one. The shared `PalmhelmKit` tests live in the Kit repository.
+Some tests need a running test Bridge and are skipped unless `TEST_RUNNER_PALMHELM_E2E_SERVER` points to one. Tests that host a real window need the test host to be the frontmost app, so they skip in a session without focus (background, headless or remote). The shared `PalmhelmKit` tests live in the Kit repository.
 
 ## Layout
 
