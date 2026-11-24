@@ -66,7 +66,7 @@ The version shown to users, 1.0, is `CFBundleShortVersionString` in `PalmhelmMac
 
 ## Licence and trademarks
 
-The source code in this repository is licensed under the Apache License, Version 2.0 (see [LICENSE](LICENSE)). The Palmhelm Bridge binary is a separate component and is not covered by that licence. Its licence is [LICENSE-palmhelm-bridge.txt](https://github.com/forsakesoul/palmhelm/releases/download/bridge-0.3.15/LICENSE-palmhelm-bridge.txt), and the third-party notices for it are in [THIRD_PARTY_NOTICES.txt](https://github.com/forsakesoul/palmhelm/releases/download/bridge-0.3.15/THIRD_PARTY_NOTICES.txt); both are shipped inside the app. The Palmhelm name and logo are not licensed under Apache-2.0; using them for a different product needs permission.
+The source code in this repository is licensed under the Apache License, Version 2.0 (see [LICENSE](LICENSE)). The Palmhelm Bridge binary is a separate component and is not covered by that licence. Its licence is [LICENSE-palmhelm-bridge.txt](https://github.com/forsakesoul/palmhelm/releases/download/bridge-0.3.16/LICENSE-palmhelm-bridge.txt), and the third-party notices for it are in [THIRD_PARTY_NOTICES.txt](https://github.com/forsakesoul/palmhelm/releases/download/bridge-0.3.16/THIRD_PARTY_NOTICES.txt); both are shipped inside the app. The Palmhelm name and logo are not licensed under Apache-2.0; using them for a different product needs permission.
 
 ## Security
 
