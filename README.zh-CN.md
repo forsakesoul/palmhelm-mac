@@ -64,7 +64,7 @@ scripts/test-mac.sh -derivedDataPath build/dd-test CODE_SIGN_IDENTITY=- DEVELOPM
 
 ## 许可与商标
 
-本仓库的源码以 Apache License, Version 2.0 授权（见 [LICENSE](LICENSE)）。Palmhelm Bridge 二进制是独立组件，不适用该许可。它的许可是 [LICENSE-palmhelm-bridge.txt](https://github.com/forsakesoul/palmhelm/releases/download/bridge-0.3.15/LICENSE-palmhelm-bridge.txt)，相关第三方声明见 [THIRD_PARTY_NOTICES.txt](https://github.com/forsakesoul/palmhelm/releases/download/bridge-0.3.15/THIRD_PARTY_NOTICES.txt)；两者都随应用一起分发。Palmhelm 的名称和标识不在 Apache-2.0 授权范围内；将其用于其它产品需要取得许可。
+本仓库的源码以 Apache License, Version 2.0 授权（见 [LICENSE](LICENSE)）。Palmhelm Bridge 二进制是独立组件，不适用该许可。它的许可是 [LICENSE-palmhelm-bridge.txt](https://github.com/forsakesoul/palmhelm/releases/download/bridge-0.3.16/LICENSE-palmhelm-bridge.txt)，相关第三方声明见 [THIRD_PARTY_NOTICES.txt](https://github.com/forsakesoul/palmhelm/releases/download/bridge-0.3.16/THIRD_PARTY_NOTICES.txt)；两者都随应用一起分发。Palmhelm 的名称和标识不在 Apache-2.0 授权范围内；将其用于其它产品需要取得许可。
 
 ## 安全
 
