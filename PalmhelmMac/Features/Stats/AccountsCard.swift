@@ -153,7 +153,7 @@ private struct AccountDetail: View {
                 Text(note).font(.caption).foregroundStyle(PalmhelmTheme.warn)
             }
             if windows.isEmpty {
-                Text(a.provider == "claude" || a.provider == "codex" ? String(localized: "暂无可显示的订阅窗口：等待新读数，或此账户不提供订阅窗口。") : String(localized: "不适用订阅窗口。"))
+                Text(["claude", "codex", "agy", "qoder"].contains(a.provider) ? String(localized: "暂无可显示的订阅窗口：等待新读数，或此账户不提供订阅窗口。") : String(localized: "不适用订阅窗口。"))
                     .font(.caption).foregroundStyle(.secondary)
             }
             ForEach(windows) { w in

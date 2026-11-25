@@ -26,7 +26,7 @@ packages:
   # 共享的 Bridge 客户端（模型、HTTP/SSE、SPKI 固定、用量解码）。固定到不可移动的 tag。
   PalmhelmKit:
     url: https://github.com/forsakesoul/palmhelm-kit.git
-    exactVersion: 0.0.3
+    exactVersion: 0.0.4
 targets:
   PalmhelmMac:
     type: application
