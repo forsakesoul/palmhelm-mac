@@ -76,6 +76,9 @@ targets:
         ENABLE_HARDENED_RUNTIME: YES
         CODE_SIGN_ENTITLEMENTS: PalmhelmMac/PalmhelmMac.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # 发行构建去掉 N_OSO 中的本机对象路径；只作用于 App，避免 PalmhelmKit 在链接前被剥离、dSYM 缺 Kit 行表。未定义时为空，等同 NO。
+        DEPLOYMENT_POSTPROCESSING: $(PALMHELM_DISTRIBUTION_STRIP)
+        STRIP_INSTALLED_PRODUCT: $(PALMHELM_DISTRIBUTION_STRIP)
   PalmhelmMacTests:
     type: bundle.unit-test
     platform: macOS
