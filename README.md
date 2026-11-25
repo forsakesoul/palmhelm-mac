@@ -9,6 +9,7 @@ Requirements: an Apple silicon Mac running macOS 15 or later, and [Herdr](https:
 - Download the signed, notarized installer from [Releases](https://github.com/forsakesoul/palmhelm/releases) or the [download page](https://forsakesoul.github.io/palmhelm/). The release notes are in the [English changelog](https://github.com/forsakesoul/palmhelm/blob/main/CHANGELOG.md) and the [中文更新日志](https://github.com/forsakesoul/palmhelm/blob/main/CHANGELOG.zh-CN.md).
 - Security and privacy (where data is stored, network use, permission boundaries, logging): [docs/security-and-privacy.md](docs/security-and-privacy.md).
 - Reaching the Mac from an iPhone away from the local network with Tailscale: [docs/tailscale.md](docs/tailscale.md).
+- Running your own Tailscale DERP relay when Tailscale has to relay and its relays are far away (in Chinese): [docs/private-derp.md](docs/private-derp.md).
 
 Palmhelm for Mac 是 Palmhelm 的桌面端：它把 Bridge 作为子进程运行，并显示 Herdr 窗格中 Claude Code、Codex 等编码 agent 的对话、审批、窗格、配对与设备、用量和设置。要求 Apple 芯片、macOS 15 及以上，并安装 Herdr。只支持在 Herdr 窗格里运行的 agent。
 

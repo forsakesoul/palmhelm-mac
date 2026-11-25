@@ -9,6 +9,7 @@ Palmhelm for Mac 是 Palmhelm 的桌面端：它把 Bridge 作为子进程运行
 - 从 [Releases](https://github.com/forsakesoul/palmhelm/releases) 或[下载页](https://forsakesoul.github.io/palmhelm/)下载已签名、已公证的安装包。发行说明见[英文更新日志](https://github.com/forsakesoul/palmhelm/blob/main/CHANGELOG.md)和[中文更新日志](https://github.com/forsakesoul/palmhelm/blob/main/CHANGELOG.zh-CN.md)。
 - 安全与隐私（数据存放位置、网络使用、权限边界、日志）：[docs/security-and-privacy.md](docs/security-and-privacy.md)。
 - 外出时在局域网之外通过 Tailscale 连接 Mac：[docs/tailscale.md](docs/tailscale.md)。
+- Tailscale 走中继、官方中继又离得远时，自建 DERP 中继：[docs/private-derp.md](docs/private-derp.md)。
 
 ## 从源码构建
 
