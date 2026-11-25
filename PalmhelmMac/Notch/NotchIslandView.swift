@@ -307,9 +307,10 @@ struct NotchIslandView: View {
             Text(a.summary.isEmpty ? String(localized: "（内容已隐藏）") : a.summaryDisplayed + (a.truncated ? "…" : "")).font(.system(.caption, design: .monospaced)).foregroundStyle(.white).lineLimit(6)
                 .padding(8).frame(maxWidth: .infinity, alignment: .leading).background(Color(white: 0.13), in: RoundedRectangle(cornerRadius: 8))
             let busy = session.deciding.contains(a.id)
+            let ticket = controller.pinEpochTicket // 渲染时捕获的连接代次：点击时与当前连接核对（同 ID 的新卡或新连接不接收）
             HStack {
-                Button("拒绝") { Task { await controller.decidePinned(.deny, expectedId: a.id) } }.buttonStyle(NotchButtonStyle(fill: PalmhelmTheme.notchBad))
-                Button("允许一次") { Task { await controller.decidePinned(.allowOnce, expectedId: a.id) } }.buttonStyle(NotchButtonStyle(fill: PalmhelmTheme.notchAccent))
+                Button("拒绝") { Task { await controller.decidePinned(.deny, expectedId: a.id, epoch: ticket) } }.buttonStyle(NotchButtonStyle(fill: PalmhelmTheme.notchBad))
+                Button("允许一次") { Task { await controller.decidePinned(.allowOnce, expectedId: a.id, epoch: ticket) } }.buttonStyle(NotchButtonStyle(fill: PalmhelmTheme.notchAccent))
                     .background(GeometryReader { g in Color.clear.preference(key: ControlFrameKey.self, value: g.frame(in: .named("notch"))) })
                 if busy { Text("提交中…").font(.caption2).foregroundStyle(Color(white: 0.6)) }
                 Spacer()

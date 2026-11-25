@@ -11,6 +11,16 @@ Palmhelm for Mac 是 Palmhelm 的桌面端：它把 Bridge 作为子进程运行
 - 外出时在局域网之外通过 Tailscale 连接 Mac：[docs/tailscale.md](docs/tailscale.md)。
 - Tailscale 走中继、官方中继又离得远时，自建 DERP 中继：[docs/private-derp.md](docs/private-derp.md)。
 
+## 远程模式
+
+默认情况下 App 运行自己的 Bridge（本机模式）。远程模式下，一台 Mac（Mac A）像 iPhone 一样只作为另一台 Mac（Mac B）上 Bridge 的客户端：Herdr、agent 和 Bridge 都在 Mac B 上运行，Mac A 查看并操作 Mac B 的会话。两种模式二选一，Mac A 同一时间只连一台远程 Mac。
+
+- 切换入口：设置 › 连接与设备 › 连接方式。切到远程会先停止本机 Bridge（包括退出后保留在后台的那个）并清空本机的会话视图；Bridge 停不下来就保持本机模式。切回本机会尝试把本机从 Mac B 的设备表中移除、清空远程会话，开启了「随 App 启动」时再启动本机 Bridge。
+- 准备 Mac B（本机模式）：在设置 › 连接与设备中打开「https 直连」并勾选局域网或 Tailscale 地址；Bridge 已在运行时点「立即重启」使其生效。只走 Tailscale 时，配对链接还需要 MagicDNS 主机名，见 [docs/tailscale.md](docs/tailscale.md)。然后打开「配对新设备」，点「复制配对链接」。
+- 配对 Mac A：在设置 › 连接与设备 › 远程 Mac 中，把链接粘贴到「配对链接」，点「使用配对链接」。也可以手动输入 Mac B 的地址、实际端口和 6 位配对码，再与 Mac B 设置 › 连接与设备中的证书短指纹核对。远程配对只接受 https 和完整的证书指纹。
+- 新配对的设备默认只读。要在 Mac A 上发消息和审批，需要在 Mac B「配对新设备」窗口的设备表里把它改成「可控」。Mac A 上的「断开」会尝试把本机从 Mac B 移除，并保持远程模式。
+- 远程模式下隐藏只对本机有意义的设置（引擎、钩子、飞书、日志、监听地址、账户额度与账户来源），图片不能粘贴、拖入或发送（文件只在 Mac A 上），用量页显示的是 Mac B 的记录。退出 Mac A 不影响 Mac B。Mac B 移除本机后，App 停止重连并提示重新配对。
+
 ## 从源码构建
 
 本仓库只包含 Mac 应用源码，不是完整系统：Bridge 以单独的二进制分发，共享的客户端包位于另一个仓库。下面的步骤从干净的 checkout 构建应用。
@@ -55,7 +65,7 @@ scripts/test-mac.sh -derivedDataPath build/dd-test CODE_SIGN_IDENTITY=- DEVELOPM
 ## 目录结构
 
 - `PalmhelmMac/Engine`：`BridgeEngine`（子进程生命周期、日志、端口文件）、`EngineSettings`（设置到环境变量的映射）、`HookClient`（回环上的钩子密钥：签发配对码、列出与撤销设备）。
-- `PalmhelmMac/App`：`MacSession`（与内置 Bridge 配对、状态与事件流、审批、发送）、应用入口与菜单栏。退出时会询问确认，默认同时停止 Bridge；若启用“退出后保持 Bridge 运行”，下次启动会接管正在运行的 Bridge（`BridgeEngine.takeOverRunningBridge`）。
+- `PalmhelmMac/App`：`MacSession`（与内置 Bridge 配对，远程模式下与另一台 Mac 的 Bridge 配对；状态与事件流、审批、发送）、`ConnectionModeSwitcher`（本机与远程模式切换的唯一入口）、应用入口与菜单栏。本机模式下，退出时会询问确认，默认同时停止 Bridge；若启用「退出 Palmhelm 后 Bridge 继续在后台运行」，下次启动会接管正在运行的 Bridge（`BridgeEngine.takeOverRunningBridge`）。远程模式不运行本机 Bridge，退出不会停止任何一台 Mac 上的 Bridge。
 - `PalmhelmMac/Features`：主窗口、配对面板与设备表、用量、设置。
 - `PalmhelmMac/Notch`：位于顶部中央、不抢焦点的浮层，支持悬停审批。
 

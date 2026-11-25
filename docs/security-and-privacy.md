@@ -8,7 +8,7 @@
 - **数据目录**：默认 `~/.palmhelm-bridge`，可由 `BRIDGE_DATA_DIR` 覆盖。新建目录权限 0700；已有目录必须是本人所有且非符号链接，才收紧为 0700。私有文件（如 `hook.secret`）为 0600。
 - **设备令牌只存哈希**：Bridge 库中只保存令牌 secret 的 SHA-256，鉴权时做常量时间比较。
 - **钥匙串保存的内容类别**（只列类别，不记值）：
-  - Mac：飞书 App Secret（仅在启用飞书通道时）、Bridge 设备令牌（`Core/KeychainStore.swift`；服务名 `com.forsakesoul.palmhelm.mac`）。
+  - Mac：飞书 App Secret（仅在启用飞书通道时）、Bridge 设备令牌（`Core/KeychainStore.swift`；服务名 `com.forsakesoul.palmhelm.mac`）。本机模式与远程模式共用这一份令牌与端点，切换模式时清除。
   - iPhone：设备令牌、设备名与 Bridge 端点（`Palmhelm/Core/Store/KeychainStore.swift`）。
 - **Bridge 的 TLS 材料**：只在 `tls/` 不存在或为空时生成，权限 0600；已有内容必须通过完整校验，校验失败不会静默重新生成。
 
@@ -18,10 +18,11 @@
 - **传输方式**：局域网与 Tailscale 监听必须启用 TLS（Mac 设置中两者不能在未开启 TLS 时启动）；启用 TLS 后，客户端按 SPKI 指纹固定，证书为自签，不校验主机名。仅回环、未启用 TLS 时为明文 http；iOS 客户端只允许回环明文。（`PalmhelmKit/Sources/PalmhelmKit/Pinning.swift`、`BridgeClient.swift`、`Accounts.swift`、`PalmhelmMac/Engine/EngineSettings.swift`）正式版经 Owner 实测为 TLS 开启：`local-api.json` 为 `transport=https`，`binds` 含回环、局域网与 Tailscale 地址；对回环、局域网 IP、Tailscale IP 与 MagicDNS 主机名的 https 请求均返回 401（握手成功，需设备令牌），http 请求被拒绝。
 - **Bonjour**：只在 TLS 开启且存在 RFC 1918 绑定时发布服务，回环与 `100.64.0.0/10` 不广播。
 - **配对**：配对码 6 位、有效期 5 分钟、单次使用；连续 5 次失败后锁定 10 分钟。重发码不清零失败计数。
+- **Mac 远程模式**：Mac 作为另一台 Mac 上 Bridge 的客户端时，不启动本机 Bridge 子进程（启动入口在远程模式下直接返回，`PalmhelmMac/Engine/BridgeEngine.swift`），也不使用本机 Hook 密钥自配对。远程配对只接受 https：链接带完整 SPKI 指纹时按实际握手证书比对，手动输入时需人工核对短指纹；Bridge 回报的指纹不一致或未回报指纹都不保存。令牌写入钥匙串成功后才保存端点；冷启动只恢复 https 且带合法的 32 字节 SPKI SHA-256 摘要的远程端点。（`PalmhelmMac/App/MacSession.swift`、`Core/KeychainStore.swift`）
 - **可选飞书通道**：启用后，消息经飞书服务器中转。该通道只在带 `feishu` 构建标签的版本中可用。
 - **iPhone 推送**：Bridge 用本机凭据直接向 Apple APNs 发送，不向安装包分发 provider 私钥。无凭据时推送被禁用。推送的标题是目标（agent）名称，正文为固定文案，不含会话内容或工具输入。
 - **Tailscale 中继**：Tailscale 无法直连时，流量可能经 Tailscale 的加密中继（DERP）转发。这由 Tailscale 提供，Palmhelm 不运营中继。
-- **Palmhelm 自有服务端**：代码中未发现 Palmhelm 自有的业务服务端地址。Mac 与 Kit 源码中的 HTTP 请求只访问本机回环地址。（已检索 Mac 与 Kit 源码中的 URL）
+- **Palmhelm 自有服务端**：代码中未发现 Palmhelm 自有的业务服务端地址。Mac 与 Kit 的业务数据连接只访问用户配置的 Bridge：明文 http 只用于本机回环；Mac 远程模式连接所配对的远程 Mac，使用配对时固定 SPKI 的 https。此外，正式版会向公开的 GitHub 发 https 请求检查更新（`PalmhelmMac/Core/UpdateChecker.swift`）。（已检索 Mac 与 Kit 源码中的 URL）
 - **Claude 额度（可选，默认关闭）**：仅当 `engine.claudeOAuthQuotaEnabled` 为开启时，Bridge 才读取 Claude 的 OAuth 凭据并请求 `api.anthropic.com` 获取额度。凭据只在内存中使用，不落盘，不写日志。
 
 ## 3. 权限边界
@@ -49,8 +50,9 @@
 
 ## 6. 撤销与重置
 
-- **移除设备**：立即生效。
-- **停止 Bridge**：Mac 退出时默认先停止 Bridge；可在设置中改为退出后继续在后台运行，下次打开时接管。（`PalmhelmMac/App/MacSession.swift` 与 README）
+- **移除设备**：立即生效。Mac 远程模式下被远程 Mac 移除（state 或事件流返回 401 / 403）时，本机清除令牌与端点、停止事件流重连，并提示重新配对；权限被降为只读不算移除，令牌保留。
+- **切回本机与断开**：切回本机时，先用当前令牌尝试从远程 Mac 自撤（最多 5 秒），再清除本机令牌与端点并切换到本机模式。远程模式下点「断开」做同样的自撤与清除，但保持远程模式，可以重新配对。两者未能确认自撤时都提示到远程 Mac 的设备表核对。（`PalmhelmMac/App/ConnectionModeSwitch.swift`）
+- **停止 Bridge**：本机模式下，Mac 退出时默认先停止 Bridge；可在设置中改为退出后继续在后台运行，下次打开时接管。远程模式不运行本机 Bridge，退出不影响远程 Mac。（`PalmhelmMac/App/QuitCoordinator.swift` 与 README）
 - **清除本机数据**：删除数据目录会移除 Bridge 的库、设备记录与日志。钥匙串中的条目需通过系统钥匙串删除。（待确认：产品内是否提供一键清除入口，以及删除钥匙串条目的操作路径）
 - **分组排序重置**：「重置分组排序」是 #98 的设计项，尚未实现。
 

@@ -21,7 +21,7 @@ final class PairingDevicesLayoutTests: XCTestCase {
             defer { defaults.removePersistentDomain(forName: suite) }
             let settings = EngineSettings(defaults: defaults)
             let host = NSHostingView(rootView: PairingWindow(devicesForTesting: devices)
-                .environment(MacSession()).environment(BridgeEngine(settings: settings)))
+                .environment(MacSession()).environment(BridgeEngine(settings: settings)).environment(settings))
             let size = NSSize(width: 840, height: 730)
             host.frame = NSRect(origin: .zero, size: size)
             let container = NSView(frame: host.frame)

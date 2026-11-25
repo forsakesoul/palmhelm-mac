@@ -4,9 +4,45 @@ import PalmhelmKit
 
 // 配对新设备（独立窗口，不用 sheet：SwiftUI sheet 挂在主窗口上时整个 App 无法退出）。
 // 本机 Hook 密钥签发 6 位码；按监听地址的可达性决定能否扫码；下方为已配对设备表（撤销）。
+/// 配对二维码与复制链接的纯函数：显示与复制共用同一个生成入口，判定时间由调用方传入。
+enum PairingQR {
+    /// 手机能不能用这个端点：回环只有本机能连，不给二维码。
+    static func phoneReachable(reach: EngineSettings.Reach?, portFile: BridgeEngine.PortFile?) -> Bool {
+        reach == .lan || (reach == .tailscale && !(portFile?.hostnames ?? []).isEmpty)
+    }
+
+    /// 配对链接（二维码与复制内容相同）。过期、不可达、没有局域网或 Tailscale 主机名时为 nil。
+    static func payload(code: HookClient.PairCode?, at now: Date, portFile: BridgeEngine.PortFile?, reach: EngineSettings.Reach?) -> String? {
+        guard phoneReachable(reach: reach, portFile: portFile), let code, !PairingCodeClock.expired(code, at: now), let pf = portFile else { return nil }
+        // host/port 给旧客户端（取对手机最可达的一项）；ep 给新客户端：lan:<ip>:<port>,ts:<host>:<port>，一次扫码保存两个地址
+        let binds = pf.allBinds
+        let lan = binds.filter { EngineSettings.reachOne($0) == .lan }
+        let ts = (pf.hostnames ?? []).filter { !$0.isEmpty }
+        // 无局域网地址时主地址用 MagicDNS 主机名（手机不接受 100.x + https，A1-153 F8）；两者都没有就不生成手机可用的二维码
+        guard let host = lan.first ?? ts.first else { return nil }
+        var s = "palmhelm://pair?host=\(host)&port=\(pf.apiPort)&code=\(code.code)&tls=\(pf.transport == "https" ? 1 : 0)"
+        if let fp = pf.tls?.spkiSha256 { s += "&fp=\(fp.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? "")" }
+        let eps = lan.map { "lan:\($0):\(pf.apiPort)" } + ts.map { "ts:\($0):\(pf.apiPort)" }
+        if !eps.isEmpty { s += "&ep=\(eps.joined(separator: ",").addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed.subtracting(CharacterSet(charactersIn: "&=,"))) ?? "")" }
+        return s
+    }
+
+    /// 能否复制：只在本机模式、实际运行端口为 https 时允许（远程模式不复制本机链接；明文不复制）。
+    static func copyAllowed(mode: ConnectionMode, portFile: BridgeEngine.PortFile?) -> Bool {
+        mode == .local && portFile?.transport == "https"
+    }
+
+    /// 复制内容：可复制且当下未过期时才有内容，否则为 nil（不写剪贴板）。
+    static func copyText(mode: ConnectionMode, code: HookClient.PairCode?, at now: Date, portFile: BridgeEngine.PortFile?, reach: EngineSettings.Reach?) -> String? {
+        guard copyAllowed(mode: mode, portFile: portFile) else { return nil }
+        return payload(code: code, at: now, portFile: portFile, reach: reach)
+    }
+}
+
 struct PairingWindow: View {
     @Environment(MacSession.self) private var session
     @Environment(BridgeEngine.self) private var engine
+    @Environment(EngineSettings.self) private var settings
     @Environment(\.dismiss) private var dismiss
     @State private var code: HookClient.PairCode?
     @State private var issuing = false
@@ -30,35 +66,47 @@ struct PairingWindow: View {
     }
     #endif
 
-    private var hook: HookClient? { engine.portFile.map { HookClient(dataDir: engine.activeDataDir, hookPort: $0.hookPort) } }
-    private var short: String? { (engine.portFile?.tls?.spkiSha256).flatMap { SPKI.shortFingerprint(spkiSha256: $0) } }
-    /// 手机能不能用这个端点：回环只有本机能连，不给二维码。
-    private var phoneReachable: Bool { engine.reach == .lan || (engine.reach == .tailscale && !(engine.portFile?.hostnames ?? []).isEmpty) }
-    /// 与倒计时、过期文字用同一个时间点（O1-341 R2）：过期后码与二维码一起失效。
-    private func qrPayload(at now: Date) -> String? {
-        guard phoneReachable, let code, !PairingCodeClock.expired(code, at: now), let pf = engine.portFile else { return nil }
-        // host/port 给旧客户端（取对手机最可达的一项）；ep 给新客户端：lan:<ip>:<port>,ts:<host>:<port>，一次扫码保存两个地址
-        let binds = pf.allBinds
-        let lan = binds.filter { EngineSettings.reachOne($0) == .lan }
-        let ts = (pf.hostnames ?? []).filter { !$0.isEmpty }
-        // 无局域网地址时主地址用 MagicDNS 主机名（手机不接受 100.x + https，A1-153 F8）；两者都没有就不生成手机可用的二维码
-        guard let host = lan.first ?? ts.first else { return nil }
-        var s = "palmhelm://pair?host=\(host)&port=\(pf.apiPort)&code=\(code.code)&tls=\(pf.transport == "https" ? 1 : 0)"
-        if let fp = pf.tls?.spkiSha256 { s += "&fp=\(fp.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? "")" }
-        let eps = lan.map { "lan:\($0):\(pf.apiPort)" } + ts.map { "ts:\($0):\(pf.apiPort)" }
-        if !eps.isEmpty { s += "&ep=\(eps.joined(separator: ",").addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed.subtracting(CharacterSet(charactersIn: "&=,"))) ?? "")" }
-        return s
+    /// 复制：点击时用当前时间重新核对（过期、明文、回环都不写剪贴板），与二维码共用同一个生成入口。
+    private func copyPairingLink() {
+        guard let text = PairingQR.copyText(mode: settings.connectionMode, code: code, at: Date(), portFile: engine.portFile, reach: engine.reach) else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
     }
 
+    /// 远程模式下本机不提供 Bridge：不发码、不读设备表。
+    private var hook: HookClient? {
+        guard settings.connectionMode == .local else { return nil }
+        return engine.portFile.map { HookClient(dataDir: engine.activeDataDir, hookPort: $0.hookPort) }
+    }
+    private var short: String? { (engine.portFile?.tls?.spkiSha256).flatMap { SPKI.shortFingerprint(spkiSha256: $0) } }
     /// 设备表的定宽列（设备列吃剩余宽度）：总宽必须放得进窗口，否则整行居中溢出、左边被裁。
     private enum Col { static let status: CGFloat = 56, paired: CGFloat = 150, seen: CGFloat = 84, permission: CGFloat = 110, action: CGFloat = 64 }
 
     var body: some View {
+        Group {
+            if settings.connectionMode == .remote { remoteNotice } else { localBody }
+        }
+        .onChange(of: settings.connectionMode) { _, mode in if mode == .remote { dismiss() } } // 切到远程：已打开的窗口立即关闭
+    }
+
+    private var remoteNotice: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("配对新设备").font(.title2.weight(.bold))
+            Text("远程模式下本机不提供 Bridge，不能给手机发配对码。").foregroundStyle(.secondary)
+            HStack { Spacer(); Button("关闭") { dismiss() }.keyboardShortcut(.defaultAction) }
+        }
+        .padding(24)
+        .frame(width: 420)
+    }
+
+    private var localBody: some View {
         VStack(alignment: .leading, spacing: 18) {
             // 倒计时、过期与二维码共用同一个时间快照（O1-341 R2）；只包顶部，设备表不随之每秒重绘
             TimelineView(.periodic(from: .now, by: 1)) { ctx in
                 let now = ctx.date
                 let expired = code.map { PairingCodeClock.expired($0, at: now) } ?? false
+                let payload = PairingQR.payload(code: code, at: now, portFile: engine.portFile, reach: engine.reach) // 本时间点只算一次：二维码显示与复制按钮的可用状态共用
+                let copyEnabled = payload != nil && PairingQR.copyAllowed(mode: settings.connectionMode, portFile: engine.portFile)
                 VStack(alignment: .leading, spacing: 18) {
                     HStack {
                         PalmhelmAppIcon(size: 36)
@@ -79,13 +127,17 @@ struct PairingWindow: View {
                             Text("1. 手机打开 Palmhelm → 我的 → 连接，选中「这台 Mac」或扫码。\n2. 核对短指纹一致，输入配对码。\n3. 成功后令牌只存在手机上，这里可随时移除。").font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                             if hook == nil { Text("Bridge 未运行：启动后这里会自动发码。").font(.caption).foregroundStyle(PalmhelmTheme.warn) }
                             if let error { Text(error.text).font(.caption).foregroundStyle(PalmhelmTheme.bad) }
+                            if code != nil, !copyEnabled { Text("先在连接设置里开启 https 并选局域网或 Tailscale 地址，才能复制配对链接。").font(.caption).foregroundStyle(PalmhelmTheme.warn) }
                             HStack {
                                 Button(issuing ? String(localized: "发码中…") : String(localized: "重新发码")) { Task { await issue() } }.disabled(hook == nil || issuing)
                                 if engine.reach == .loopback { SettingsLink { Text("打开连接设置") } }
+                                Button("复制配对链接") { copyPairingLink() } // 点击时用当前时间重新核对
+                                    .disabled(!copyEnabled)
+                                    .help(copyEnabled ? "" : String(localized: "先在连接设置里开启 https 并选局域网或 Tailscale 地址"))
                                 Button("关闭") { dismiss() }
                             }
                         }
-                        if let payload = qrPayload(at: now), let img = qrCache.image(for: payload, make: qrImage) {
+                        if let payload, let img = qrCache.image(for: payload, make: qrImage) {
                             Image(nsImage: img).interpolation(.none).resizable().frame(width: 160, height: 160).background(Color.white).clipShape(RoundedRectangle(cornerRadius: 8))
                         }
                     }

@@ -192,12 +192,12 @@ final class NotchHitTests: XCTestCase {
         XCTAssertEqual(c.pin.id, "A", "展开期间固定当次 id")
         XCTAssertFalse(c.pinnedIsLive)
         XCTAssertEqual(c.pinnedGoneNote, "已过期")
-        await c.decidePinned(.allowOnce, expectedId: "A") // 抬起：零决策，B 也不会被决策
+        await c.decidePinned(.allowOnce, expectedId: "A", epoch: c.pinEpochTicket) // 抬起：零决策，B 也不会被决策
         XCTAssertTrue(calls.all.isEmpty, "A 失效后零决策；B 没被碰：\(calls.all)")
         c.advancePin()
         XCTAssertEqual(c.pin.id, "B", "切到 B 需要明确操作")
-        await c.decidePinned(.deny, expectedId: "B")
-        await c.decidePinned(.deny, expectedId: "A") // 过期的 id：执行时复核，不落到当前固定的 B
+        await c.decidePinned(.deny, expectedId: "B", epoch: c.pinEpochTicket)
+        await c.decidePinned(.deny, expectedId: "A", epoch: c.pinEpochTicket) // 过期的 id：执行时复核，不落到当前固定的 B
         XCTAssertEqual(calls.all, ["B:deny"])
     }
 
