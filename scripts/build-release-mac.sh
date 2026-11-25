@@ -10,9 +10,10 @@ BUILD_NUMBER="${1:-${PALMHELM_BUILD_NUMBER:-$PROJECT_BUILD_NUMBER}}"
 bundle_bridge
 (cd "$ROOT" && xcodegen generate >/dev/null)
 BUILD_LOG="$(mktemp)"
-xcodebuild -project "$ROOT/PalmhelmMac.xcodeproj" -scheme PalmhelmMac -configuration Release -derivedDataPath "$ROOT/build/dd-distribution" build CURRENT_PROJECT_VERSION="$BUILD_NUMBER" SWIFT_ACTIVE_COMPILATION_CONDITIONS="$DISTRIBUTION_CONDITIONS" >"$BUILD_LOG" 2>&1 || { tail -n 40 "$BUILD_LOG" >&2; rm -f "$BUILD_LOG"; echo "发行 Release 构建失败" >&2; exit 1; }
+xcodebuild -project "$ROOT/PalmhelmMac.xcodeproj" -scheme PalmhelmMac -configuration Release -derivedDataPath "$ROOT/build/dd-distribution" build CURRENT_PROJECT_VERSION="$BUILD_NUMBER" SWIFT_ACTIVE_COMPILATION_CONDITIONS="$DISTRIBUTION_CONDITIONS" PALMHELM_DISTRIBUTION_STRIP=YES >"$BUILD_LOG" 2>&1 || { tail -n 40 "$BUILD_LOG" >&2; rm -f "$BUILD_LOG"; echo "发行 Release 构建失败" >&2; exit 1; }
 rm -f "$BUILD_LOG"
 APP="$ROOT/build/dd-distribution/Build/Products/Release/Palmhelm.app"
 test -d "$APP" || { echo "未找到发行产物：$APP" >&2; exit 1; }
 verify_bridge_resources "$APP"
+verify_no_home_paths "$APP"
 echo "$APP"

@@ -33,3 +33,20 @@ verify_bridge_resources() {
   [ "$(shasum -a 256 "$APP_RES/THIRD_PARTY_NOTICES.txt" | cut -d' ' -f1)" = "$BRIDGE_NOTICES_SHA256" ] || { echo "第三方声明摘要不符" >&2; exit 1; }
   echo "App 内 Bridge 与许可文件核对通过"
 }
+# 发行 App 内不得含本机用户目录前缀：grep 退出 0 为命中（失败），1 为通过，其它为检查本身失败。只报相对路径。
+verify_no_home_paths() {
+  APP_DIR="$1"
+  [ -r "$APP_DIR/Contents/MacOS/Palmhelm" ] || { echo "App 主程序缺失或不可读" >&2; exit 1; }
+  HOME_PREFIX="${HOME%/}/"
+  hits_rc=0
+  hits="$(grep -r -a -l -F -- "$HOME_PREFIX" "$APP_DIR" 2>/dev/null)" || hits_rc=$?
+  case "$hits_rc" in
+    0) echo "App 内含本机用户目录路径，命中文件：" >&2
+       while IFS= read -r f; do echo "  ${f#"$APP_DIR"/}" >&2; done <<EOF
+$hits
+EOF
+       exit 1 ;;
+    1) echo "App 内未发现本机用户目录路径" ;;
+    *) echo "本机路径检查失败" >&2; exit 1 ;;
+  esac
+}

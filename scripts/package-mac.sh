@@ -14,11 +14,12 @@ BUILD_NUMBER="${PALMHELM_BUILD_NUMBER:-$PROJECT_BUILD_NUMBER}"
 bundle_bridge
 (cd "$ROOT" && xcodegen generate >/dev/null)
 BUILD_LOG="$(mktemp)"
-xcodebuild -project "$ROOT/PalmhelmMac.xcodeproj" -scheme PalmhelmMac -configuration Release -derivedDataPath "$ROOT/build/dd-release" build CURRENT_PROJECT_VERSION="$BUILD_NUMBER" SWIFT_ACTIVE_COMPILATION_CONDITIONS="$DISTRIBUTION_CONDITIONS" >"$BUILD_LOG" 2>&1 || { tail -n 40 "$BUILD_LOG" >&2; rm -f "$BUILD_LOG"; echo "Release 构建失败（签名或编译）" >&2; exit 1; }
+xcodebuild -project "$ROOT/PalmhelmMac.xcodeproj" -scheme PalmhelmMac -configuration Release -derivedDataPath "$ROOT/build/dd-release" build CURRENT_PROJECT_VERSION="$BUILD_NUMBER" SWIFT_ACTIVE_COMPILATION_CONDITIONS="$DISTRIBUTION_CONDITIONS" PALMHELM_DISTRIBUTION_STRIP=YES >"$BUILD_LOG" 2>&1 || { tail -n 40 "$BUILD_LOG" >&2; rm -f "$BUILD_LOG"; echo "Release 构建失败（签名或编译）" >&2; exit 1; }
 rm -f "$BUILD_LOG"
 APP="$ROOT/build/dd-release/Build/Products/Release/Palmhelm.app"
 test -d "$APP" || { echo "未找到 Release 产物：$APP" >&2; exit 1; }
 verify_bridge_resources "$APP"
+verify_no_home_paths "$APP"
 VER="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist" 2>/dev/null || echo 0.0)"
 STAGE="$(mktemp -d)"
 cp -R "$APP" "$STAGE/"
