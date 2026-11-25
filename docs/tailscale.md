@@ -17,7 +17,7 @@
    出现证书短指纹时，与 Mac 配对窗口显示的一串核对一致再确认。
 5. **验证**：手机关掉 Wi‑Fi，确认 Tailscale 仍为已连接，Palmhelm 顶栏显示「已连接 · …ts.net」。
 
-连上之后如果明显偏慢：两端打不通直连时 Tailscale 会走中继，官方中继又离得远，可以在附近的服务器上自建 DERP 中继，见 [private-derp.md](private-derp.md)。
+连上之后明显偏慢，多半是两端打不通直连、走了离得远的官方中继；可以在附近的服务器上自建 DERP 中继，见 [private-derp.md](private-derp.md)。
 
 ## 为什么必须用 ts.net 域名 + https
 

@@ -217,7 +217,7 @@ curl --fail --show-error --silent --max-time 60 \
       "RegionName": "Private DERP",
       "Nodes": [
         {
-          "Name": "private-relay-1",
+          "Name": "myrelay-1",
           "RegionID": 900,
           "HostName": "derp.example.com",
           "IPv4": "203.0.113.10",
@@ -251,7 +251,7 @@ tailscale ping --tsmp --until-direct=false --c=3 --timeout=3s your-phone
 
 `tailscale ping` 默认会一直等到直连。已有 DERP pong 后出现 `direct connection not established`，不代表中继失败。
 
-以上都是正向验收，只能说明你的设备能用这个中继。HTTP 探测成功、日志里没有拒绝记录，都证明不了陌生客户端会被拒绝。本文的配置没有用不在你 Tailnet 里的节点做过拒绝测试，Tailscale 官方文档也没有给出这类测试方法；客户端验证是否生效，以 derper 的实现和日志为准。
+以上都是正向验收，只能说明你的设备能用这个中继。HTTP 探测成功、日志里没有拒绝记录，都证明不了陌生客户端会被拒绝。本文的配置没有用不在你 Tailnet 里的节点做过拒绝测试，Tailscale 官方文档也没有给出这类测试方法。
 
 ## 常见问题
 
