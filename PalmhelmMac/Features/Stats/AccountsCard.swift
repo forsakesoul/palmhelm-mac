@@ -172,6 +172,8 @@ private struct AccountDetail: View {
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("\(QuotaCopy.windowTitle(w))，\(QuotaCopy.usedText(w))，\(QuotaCopy.resetText(w, now: now))\(evidence.map { "，\($0)" } ?? "")")
             }
+            // 套餐说明（#149）：视觉上的兄弟文本，随详情滚动；账户行的 AX 标签不改。
+            if let planNote = QuotaCopy.planQuotaNote(a) { Text(planNote).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
             if let t = a.observedAt { Text("采集于 \(Self.timeText(t))").font(.caption2).foregroundStyle(.secondary) }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)

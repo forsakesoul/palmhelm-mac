@@ -37,7 +37,7 @@ This repository contains the Mac app source. It is not the whole system: the Bri
    scripts/bundle-bridge.sh --from-dist /path/to/palmhelm-bridge
    ```
    `scripts/build-release-mac.sh` and `scripts/package-mac.sh` use the same local copy when `PALMHELM_BRIDGE_DIST=/path/to/palmhelm-bridge` is set.
-3. Generate the project and build. `PalmhelmKit` is resolved from the pinned tag `0.0.1` of [forsakesoul/palmhelm-kit](https://github.com/forsakesoul/palmhelm-kit).
+3. Generate the project and build. `PalmhelmKit` is resolved from the tag pinned in `project.yml` (`exactVersion`) of [forsakesoul/palmhelm-kit](https://github.com/forsakesoul/palmhelm-kit).
    ```sh
    xcodegen generate
    xcodebuild build -project PalmhelmMac.xcodeproj -scheme PalmhelmMac -configuration Debug \
