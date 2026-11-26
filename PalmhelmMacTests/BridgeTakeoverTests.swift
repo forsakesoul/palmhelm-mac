@@ -836,7 +836,7 @@ final class BackgroundRestartQuitTests: XCTestCase {
 /// 只允许接受、不写任何偏好的确认替身（A1-208 反例共用）。
 @MainActor
 struct AcceptQuit: QuitConfirming {
-    func confirm(keepsAfterQuit: Bool) -> QuitAnswer { QuitAnswer(quit: true, suppress: false) }
+    func confirm(keepsAfterQuit: Bool, mode: ConnectionMode) -> QuitAnswer { QuitAnswer(quit: true, suppress: false) }
 }
 
 /// 系统进程表的只读探测：只读取测试宿主自己和一个不存在的 pid，不启动、不发信号。

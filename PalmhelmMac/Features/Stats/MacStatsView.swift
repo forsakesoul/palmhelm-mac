@@ -69,7 +69,11 @@ struct MacStatsView: View {
     private var subtitle: String {
         let refreshing = session.usageLoading && matchingUsage != nil
         let t = session.usageFetchedAt.map { $0.shown(date: .omitted, time: .shortened) }
-        return pageState.headline(defaultText: String(localized: "这台 Mac 的本地记录 · 按参考 API 价估算 · 不是账单 / 订阅额度"), lastUpdated: t, refreshing: refreshing, offline: session.link != .connected, failure: session.usageError?.text)
+        // 远程模式下读到的是远程 Mac 的记录：副标题标明来源，避免把它当成本机用量
+        let source = session.connectionModeProvider() == .remote
+            ? String(localized: "远程 Mac \(session.endpoint?.host ?? String(localized: "未配对")) 的记录 · 按参考 API 价估算 · 不是账单 / 订阅额度")
+            : String(localized: "这台 Mac 的本地记录 · 按参考 API 价估算 · 不是账单 / 订阅额度")
+        return pageState.headline(defaultText: source, lastUpdated: t, refreshing: refreshing, offline: session.link != .connected, failure: session.usageError?.text)
     }
     private var subtitleTint: Color {
         switch pageState { case .failed: PalmhelmTheme.bad; case .disconnected, .empty: .secondary; case .loading: .secondary; case .ready: session.usageError != nil || session.link != .connected ? PalmhelmTheme.warn : .secondary }

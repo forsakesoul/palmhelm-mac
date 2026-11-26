@@ -13,6 +13,16 @@ Requirements: an Apple silicon Mac running macOS 15 or later, and [Herdr](https:
 
 Palmhelm for Mac 是 Palmhelm 的桌面端：它把 Bridge 作为子进程运行，并显示 Herdr 窗格中 Claude Code、Codex 等编码 agent 的对话、审批、窗格、配对与设备、用量和设置。要求 Apple 芯片、macOS 15 及以上，并安装 Herdr。只支持在 Herdr 窗格里运行的 agent。
 
+## Remote mode
+
+By default the app runs its own Bridge (local mode). In remote mode, a Mac (Mac A) only acts as a client of the Bridge on another Mac (Mac B), the way the iPhone app does: Mac B runs Herdr, the agents and the Bridge, and Mac A shows and controls Mac B's sessions. The two modes are exclusive, and Mac A connects to one remote Mac at a time.
+
+- Switch in Settings › Connection and devices › Connection mode. Switching to remote stops the local Bridge first (including one kept running after quit) and clears the local session view; if the Bridge does not stop, the app stays in local mode. Switching back to local tries to remove this Mac from Mac B's device list, clears the remote session, and starts the local Bridge if "Starts with the app" is on.
+- Prepare Mac B (local mode): in Settings › Connection and devices, turn on "Direct https" and turn on listening on the local network or Tailscale. If its Bridge is already running, click "Restart now" so the change takes effect. Over Tailscale only, the pairing link also needs a MagicDNS hostname, see [docs/tailscale.md](docs/tailscale.md). Then open "Pair new device" and click "Copy pairing link".
+- Pair Mac A: in Settings › Connection and devices › Remote Mac, paste the link into "Pairing link" and click "Use pairing link". You can also type Mac B's address, its actual port and the 6-digit code, then check the short fingerprint against the certificate fingerprint in Settings › Connection and devices on Mac B. Remote pairing only accepts https with a full certificate pin.
+- A newly paired device is read-only. To send messages and answer approvals from Mac A, set it to "Can control" in the device table of Mac B's "Pair new device" window. "Disconnect" on Mac A tries to remove this Mac from Mac B and stays in remote mode.
+- In remote mode the local-only settings (engine, hooks, Feishu, logs, listen addresses, account quota and sources) are hidden, images cannot be pasted, dropped or sent (the file would stay on Mac A), and the usage page shows Mac B's records. Quitting Mac A does not affect Mac B. If Mac B removes this Mac, the app stops reconnecting and asks you to pair again.
+
 ## Building from source
 
 This repository contains the Mac app source. It is not the whole system: the Bridge is distributed as a separate binary, and the shared client package is a separate repository. The steps below build the app from a clean checkout.
@@ -57,7 +67,7 @@ Some tests need a running test Bridge and are skipped unless `TEST_RUNNER_PALMHE
 ## Layout
 
 - `PalmhelmMac/Engine`: `BridgeEngine` (child-process lifecycle, logs, port file), `EngineSettings` (settings to environment variables), `HookClient` (hook key on loopback: issue codes, list and revoke devices).
-- `PalmhelmMac/App`: `MacSession` (pairs with the bundled Bridge, state and event streams, approvals, sending), app entry and menu bar. Quitting asks for confirmation and stops the Bridge by default; with "keep Bridge running after quit" enabled, the next launch takes over the running Bridge (`BridgeEngine.takeOverRunningBridge`).
+- `PalmhelmMac/App`: `MacSession` (pairs with the bundled Bridge or, in remote mode, another Mac's Bridge; state and event streams, approvals, sending), `ConnectionModeSwitcher` (the single entry for switching between local and remote mode), app entry and menu bar. In local mode, quitting asks for confirmation and stops the Bridge by default; with "The Bridge keeps running in the background after Palmhelm quits" enabled, the next launch takes over the running Bridge (`BridgeEngine.takeOverRunningBridge`). Remote mode runs no local Bridge, so quitting does not stop a Bridge on either Mac.
 - `PalmhelmMac/Features`: main window, pairing sheet and device table, usage, settings.
 - `PalmhelmMac/Notch`: non-activating overlay at the top centre with hover approvals.
 

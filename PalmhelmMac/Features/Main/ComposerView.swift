@@ -39,7 +39,9 @@ enum ComposerAttachments {
 
     /// 加入列表。不可编辑时既不落盘也不改列表。文件缺失 / 不可读给错误并保留草稿；缓存失败给错误。返回面向用户的错误文案（成功为 nil）。
     @discardableResult
-    static func add(_ items: [ComposerImageItem], to list: inout [ComposerAttachment], editable: Bool, cacheDir: URL = AttachmentCache.defaultDirectory) -> LText? {
+    static func add(_ items: [ComposerImageItem], to list: inout [ComposerAttachment], editable: Bool, remote: Bool = false, cacheDir: URL = AttachmentCache.defaultDirectory) -> LText? {
+        // 远程模式：图片只在这台 Mac 上，远端收不到文件字节，所以入口直接拒绝并说明（不落盘、不改列表）
+        if remote, !items.isEmpty { return LText(String(localized: "远程模式下暂不支持发送图片（图片只在这台 Mac 上）")) }
         guard editable else { return nil }
         var failure: LText?
         for item in items {
@@ -91,6 +93,8 @@ struct ComposerView: View {
     let scope: String
     /// 发送入口的组字准入：组字中点发送只确认候选，不发送。
     let gate: ComposerCompositionGate
+    /// 远程模式：不接收图片（粘贴与拖入都在入口拒绝）。
+    var remote: Bool = false
     @State private var height: CGFloat = 24
 
     var body: some View {
@@ -116,7 +120,7 @@ struct ComposerView: View {
             }
             ZStack(alignment: .topLeading) {
                 ComposerTextField(text: $draft, height: $height, enabled: enabled, scope: scope, gate: gate, onSubmit: onSubmit, onSubmitCommand: onSubmitCommand, onImages: { items in
-                    if let err = ComposerAttachments.add(items, to: &attachments, editable: enabled) { onError(err) }
+                    if let err = ComposerAttachments.add(items, to: &attachments, editable: enabled, remote: remote) { onError(err) }
                 })
                     .frame(height: height)
                 if draft.isEmpty {

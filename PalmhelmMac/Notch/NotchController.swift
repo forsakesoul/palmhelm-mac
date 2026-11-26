@@ -78,7 +78,7 @@ final class NotchController {
     private(set) var layoutAnimation: Animation?
     private(set) var toast = NotchToastState()
     @ObservationIgnored private var hover = NotchHoverState() // 视图不读它；每拍都会改，不能触发观测
-    @ObservationIgnored private var snapshot: NotchSnapshot?
+    @ObservationIgnored private(set) var snapshot: NotchSnapshot?
     /// 展开内容的实测高度（由视图回报）：形状高度随内容。
     var contentHeight: CGFloat = 120 { didSet { if abs(oldValue - contentHeight) > 0.5 { refresh() } } }
     /// 角色动画是否运行：减少动态效果、面板不可见、屏幕锁定 / 休眠时停。
@@ -339,9 +339,25 @@ final class NotchController {
     @ObservationIgnored private var lastHit: HitKey?
     var ignoresMouseEvents: Bool? { panel?.ignoresMouseEvents }
 
+    /// 固定卡所属的连接代次：卡建立时记下，之后连接换代（切换模式 / 忘记配对）即失效。
+    @ObservationIgnored private var pinEpoch: Int?
+
+    /// 连接换代：固定卡、提示与事件差分基线都属于旧连接，一并清掉（之后按新连接重新建立）。
+    func resetConnection() {
+        pin = NotchCardPin()
+        pinnedApproval = nil
+        pinEpoch = nil
+        toast = NotchToastState()
+        snapshot = nil
+        diffedGeneration = -1
+        derivedStale = true
+        refresh(force: true)
+    }
+
     private func syncPin() {
         var p = pin
         p.sync(expanded: hover.expanded, pending: pending.map(\.id))
+        if p.id != pin.id { pinEpoch = session?.connectionEpoch }
         if p != pin { pin = p }
         let live = p.id.flatMap { id in pending.first { $0.id == id } }
         if let live, live != pinnedApproval { pinnedApproval = live }
@@ -351,6 +367,7 @@ final class NotchController {
     func advancePin() {
         var p = pin
         p.advance(pending: pending.map(\.id))
+        if p.id != pin.id { pinEpoch = session?.connectionEpoch }
         pin = p
         pinnedApproval = p.id.flatMap { id in pending.first { $0.id == id } }
     }
@@ -363,10 +380,16 @@ final class NotchController {
         }
     }
     /// 决定只落在固定显示的那一条上：它已失效就零操作（按下与抬起之间失效也不会落到别的卡）。
-    func decidePinned(_ choice: ApprovalDecision, expectedId: String) async {
+    /// 当前固定卡所属的连接代次（视图在渲染时捕获，随按钮交回 decidePinned 核对）。
+    var pinEpochTicket: Int? { pinEpoch }
+
+    /// epoch 是按钮渲染时捕获的票据：只有「按钮显示的那张卡 + 它所属的连接」仍是当前状态时才决定，同 ID 的新卡或新连接一律不接收。
+    func decidePinned(_ choice: ApprovalDecision, expectedId: String, epoch: Int?) async {
         // 执行时复核：卡上按钮对应的 id 必须仍是固定的那条，且它仍在当前待答里
         // 授权不用缓存：按当前待答现算（session.decide 之后还会再复核一次）。
-        guard let a = pinnedApproval, a.id == expectedId, pin.id == expectedId, pin.isLive(pending: (session?.pendingApprovals ?? []).map(\.id)) else { return }
+        guard let epoch, let a = pinnedApproval, a.id == expectedId, pin.id == expectedId,
+              pinEpoch == epoch, epoch == session?.connectionEpoch,
+              pin.isLive(pending: (session?.pendingApprovals ?? []).map(\.id)) else { return }
         await session?.decide(a, choice)
     }
 

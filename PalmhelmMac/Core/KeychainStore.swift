@@ -73,14 +73,22 @@ enum KeychainStore {
         d.set(ep.spkiSha256, forKey: "bridge.spki")
     }
 
-    static func loadEndpoint() -> BridgeEndpoint? {
+    /// requirePinned（远程模式）：只接受 https 且带合法 32 字节 SPKI 摘要的端点，否则视为未配对。local 读取不变（requirePinned=false）。
+    static func loadEndpoint(requirePinned: Bool = false) -> BridgeEndpoint? {
         let d = AppDefaults.standard
         guard let host = d.string(forKey: "bridge.host"), !host.isEmpty else { return nil }
         let transport = Transport(rawValue: d.string(forKey: "bridge.transport") ?? "") ?? .http
         let spki = d.string(forKey: "bridge.spki")
         if transport == .https && spki == nil { return nil }
+        if requirePinned, transport != .https || !isValidPin(spki) { return nil }
         let port = d.integer(forKey: "bridge.port")
         return BridgeEndpoint(host: host, port: port == 0 ? BridgeAPI.defaultPort : port, transport: transport, spkiSha256: spki)
+    }
+
+    /// SHA-256 的 SPKI 摘要：标准 base64 解码后恰为 32 字节。
+    static func isValidPin(_ spki: String?) -> Bool {
+        guard let spki, let data = Data(base64Encoded: spki) else { return false }
+        return data.count == 32
     }
 
     static func clearEndpoint() {

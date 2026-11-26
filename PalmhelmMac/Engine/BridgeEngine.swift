@@ -83,6 +83,8 @@ final class BridgeEngine {
     /// 当前这次子进程启动的编号：退出回调带着编号回来，区分「为重启而退出的旧进程」与「新进程自己失败退出」（H3）。
     private var currentLaunch = 0
     private var restartVictimLaunch: Int?
+    /// 模式切换期间置位（切换器负责置位与清除）：此时任何入口都不启动子进程。
+    var startBlocked = false
 
     init(settings: EngineSettings) { self.settings = settings }
 
@@ -122,7 +124,9 @@ final class BridgeEngine {
         backgroundRestartInFlight = false // 被作废的重启不会再启动新进程，退出不再需要等它
     }
 
+    /// 所有启动路径（start、重启、网络自动重启、接管替换）的共同入口：远程模式或切换期间一律不起进程，也不改状态。
     private func startProcess() {
+        guard settings.connectionMode == .local, !startBlocked else { return }
         guard process == nil else { return }
         guard settings.secretsLoaded else { append("[palmhelm] 钥匙串尚未读完，先不启动"); return } // 否则飞书 Secret 为空会以独立模式冻结运行环境
         guard let bin = settings.resolvedBinary else {
@@ -182,6 +186,26 @@ final class BridgeEngine {
     func stop() async {
         invalidateRestart()
         await stopProcess()
+    }
+
+    /// 模式切换用的有界停机：作废排队与进行中的重启，SIGTERM → 最多 12 秒 → SIGKILL → 最多 5 秒。
+    /// 返回进程是否确认退出；未确认时保留进程跟踪（之后的停止与退出照常处理），调用方据此保持 local。
+    func stopForModeSwitch() async -> Bool {
+        invalidateRestart()
+        guard let p = process else { return true }
+        terminateChild()
+        for _ in 0..<60 where p.isRunning { await sleep(.milliseconds(200)) }
+        if p.isRunning { kill(p) }
+        for _ in 0..<50 where p.isRunning { await sleep(.milliseconds(100)) }
+        guard !p.isRunning else { return false }
+        if let adopted = p as? AdoptedChild {
+            adoptedGone(adopted)
+        } else if process === p {
+            // 退出回调是异步回到主线程的：这里直接收束，并让迟到的回调因代次过期而被忽略。
+            terminated(launch: currentLaunch, code: 0)
+            currentLaunch += 1
+        }
+        return true
     }
 
     /// 重启内部用的停机：不作废重启代次（否则重启会取消自己）。
@@ -425,6 +449,7 @@ final class BridgeEngine {
 
     /// 启动序列（AppBoot 与测试共用同一个入口）：先接管或替换上次留下的后台 Bridge，再按「随 App 启动」设置自动启动。
     func bootOnLaunch() async {
+        guard settings.connectionMode == .local else { return } // 远程模式：不接管、不启动本机 Bridge
         await takeOverRunningBridge()
         if settings.autoStart { start() }
     }

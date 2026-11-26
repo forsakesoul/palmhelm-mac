@@ -11,6 +11,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     lazy var engine = BridgeEngine(settings: settings)
     let session = MacSession()
     let notch = NotchController()
+    /// 本机 ↔ 远程模式切换的唯一入口（UI 绑定在切片 2 完成）。
+    lazy var modeSwitcher = ConnectionModeSwitcher(settings: settings, engine: engine, session: session, notch: notch)
     let updates = UpdateChecker.production()
     private var updateTask: Task<Void, Never>?
     private let languageRefresher = LanguageRefresher()
@@ -29,7 +31,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.appearance = PalmhelmThemeStore.shared.appearance.nsAppearance // 按本机保存的外观；之后由 store 即时更新，不重建任何窗口
         updateTask = Task { @MainActor [updates] in await updates.runLoop() } // 非发行构建 / 测试宿主 networkEnabled 为 false，直接返回
-        bootTask = Task { @MainActor in await AppBoot.run(settings: settings, engine: engine, session: session, notch: notch) }
+        session.connectionModeProvider = { [settings] in settings.connectionMode } // 模式的唯一权威仍是 EngineSettings
+        session.onConnectionForgotten = { [notch] in notch.resetConnection() } // 鉴权失效的自动撤销也要清刘海的固定卡
+        bootTask = Task { @MainActor in await AppBoot.run(settings: settings, engine: engine, session: session, notch: notch, switcher: modeSwitcher) }
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {

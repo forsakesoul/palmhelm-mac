@@ -1,6 +1,11 @@
 import Foundation
 import Observation
 
+/// 连接模式（单一权威）：local 托管本机 Bridge；remote 只连接已配对的远程 Mac，不启动本机子进程。缺省 local，旧安装零迁移。
+enum ConnectionMode: String, Sendable {
+    case local, remote
+}
+
 // 内置 Bridge 的配置：非机密进 UserDefaults，App Secret 进钥匙串。启动时转成子进程环境变量（Bridge 只从进程环境读配置）。
 @MainActor
 @Observable
@@ -14,6 +19,8 @@ final class EngineSettings {
     var keepBridgeAfterQuit: Bool { didSet { d.set(keepBridgeAfterQuit, forKey: "engine.keepAfterQuit") } }
     /// 退出前确认（默认开）。「不再询问」即关闭它；设置里可重新打开。
     var confirmQuit: Bool { didSet { d.set(confirmQuit, forKey: "app.confirmQuit") } }
+    /// 连接模式：只经 ConnectionModeSwitcher 改写（先清理再落盘）。
+    var connectionMode: ConnectionMode { didSet { d.set(connectionMode.rawValue, forKey: "palmhelm.mac.connectionMode") } }
     var binaryPath: String { didSet { d.set(binaryPath, forKey: "engine.binaryPath") } }
     var dataDir: String { didSet { d.set(dataDir, forKey: "engine.dataDir") } }
     var tls: Bool { didSet { d.set(tls, forKey: "engine.tls") } }
@@ -102,6 +109,7 @@ final class EngineSettings {
         autoStart = d.object(forKey: "engine.autoStart") as? Bool ?? true
         keepBridgeAfterQuit = d.object(forKey: "engine.keepAfterQuit") as? Bool ?? false
         confirmQuit = d.object(forKey: "app.confirmQuit") as? Bool ?? true
+        connectionMode = ConnectionMode(rawValue: d.string(forKey: "palmhelm.mac.connectionMode") ?? "") ?? .local
         binaryPath = d.string(forKey: "engine.binaryPath") ?? ""
         dataDir = d.string(forKey: "engine.dataDir") ?? Self.defaultDataDir
         tls = d.object(forKey: "engine.tls") as? Bool ?? false

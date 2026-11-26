@@ -61,7 +61,7 @@ struct MainWindow: View {
             .background(GeometryReader { g in Color.clear.onAppear { proxyWidth = g.size.width }.onChange(of: g.size.width) { _, w in proxyWidth = w; var st = sidebar; st.widthChanged(narrow: SidebarState.isNarrow(w)); sidebar = st } })
         }
         .onAppear {
-            if ProcessInfo.processInfo.arguments.contains("-palmhelmShowPairing") { openWindow(id: "pairing") } // 走查用
+            if ProcessInfo.processInfo.arguments.contains("-palmhelmShowPairing"), settings.connectionMode == .local { openWindow(id: "pairing") } // 走查用；远程模式不打开
             applyNavigation() // 冷启动 / 窗口关闭后重开：入口留在 Session 的意图在这里消费
             if session.requestConversation { page.wrappedValue = .conversation; session.requestConversation = false } // 独立搜索窗口请求时主窗口可能尚未 onAppear
         }
@@ -120,7 +120,9 @@ struct MainWindow: View {
                     }
                 }
                 .help(engineHelp)
-                Button("配对新设备") { openWindow(id: "pairing") }.disabled(!engine.isRunning).help(engine.isRunning ? String(localized: "给手机发 6 位配对码") : String(localized: "Bridge 未运行"))
+                if settings.connectionMode == .local {
+                    Button("配对新设备") { openWindow(id: "pairing") }.disabled(!engine.isRunning).help(engine.isRunning ? String(localized: "给手机发 6 位配对码") : String(localized: "Bridge 未运行"))
+                }
             }
         }
     }
@@ -146,6 +148,7 @@ struct MainWindow: View {
         return phase == .connected ? String(localized: "已连接") : phase.label
     }
     private var engineHelp: String {
+        if settings.connectionMode == .remote { return RemoteLinePresentation.help(endpoint: session.endpoint, phase: phase.label) }
         guard engine.isRunning, let pf = engine.portFile else { return String(localized: "打开设置启动 Bridge") }
         return String(localized: "Bridge 运行中 · \(engine.mode) · \(pf.transport) \(pf.bind):\(pf.apiPort) · 本机连接\(session.link == .connected ? String(localized: "正常") : String(localized: "未就绪"))。点击打开设置")
     }
@@ -783,7 +786,7 @@ private struct ThreadColumn: View {
                 ComposerSendHint(hint: hint, agentName: agentName)
             }
             HStack(alignment: .bottom, spacing: 8) {
-                ComposerView(draft: draftBinding(t.id), attachments: attachmentsBinding(t.id), enabled: canEdit, placeholder: agent.map { String(localized: "直接发给 \($0)…") } ?? String(localized: "发给 \(t.projectName)…"), onSubmit: { submit(mode: primaryMode(agent, kind: t.kind)) }, onError: { composerError = $0 }, onSubmitCommand: { Task { composerError = nil; composerError = await session.commandReturn(threadId: t.id, agent: agent) } }, scope: session.draftKey(t.id), gate: composerGate)
+                ComposerView(draft: draftBinding(t.id), attachments: attachmentsBinding(t.id), enabled: canEdit, placeholder: agent.map { String(localized: "直接发给 \($0)…") } ?? String(localized: "发给 \(t.projectName)…"), onSubmit: { submit(mode: primaryMode(agent, kind: t.kind)) }, onError: { composerError = $0 }, onSubmitCommand: { Task { composerError = nil; composerError = await session.commandReturn(threadId: t.id, agent: agent) } }, scope: session.draftKey(t.id), gate: composerGate, remote: settings.connectionMode == .remote)
                 SendControls(busy: busy, canSubmit: canSubmit(agent: agent), menuShown: sendMenuShown, steer: session.steerAvailability(threadId), direct: agent != nil, nativeSteer: session.nativeSteerEnabled(threadId), nativeSendNow: session.nativeSendNow(threadId), queueDeadline: t.capabilities?.queueDeadline == true, onDeadline: { submit(mode: .queue, queueTTLSeconds: $0) },
                              onPrimary: { submit(mode: primaryMode(agent, kind: t.kind)) }, onChoose: { submit(mode: $0) })
             }
@@ -1033,6 +1036,7 @@ struct RowView: View {
 /// 连接阶段（顶栏、左栏底部、统计页共用的唯一投影）。
 @MainActor func currentPhase(_ engine: BridgeEngine, _ settings: EngineSettings, _ session: MacSession) -> ConnectionPhase {
     ConnectionPhase.from(
+        mode: settings.connectionMode,
         engineStatus: engine.status,
         portFileReady: engine.portFile != nil,
         credentialsLoaded: session.credentialsLoaded,

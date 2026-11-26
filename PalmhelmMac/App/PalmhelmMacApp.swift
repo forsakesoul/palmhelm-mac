@@ -47,6 +47,7 @@ struct PalmhelmMacApp: App {
             PairingWindow()
                 .environment(delegate.session)
                 .environment(delegate.engine)
+                .environment(delegate.settings)
                 .displayLanguage()
         }
         .windowResizability(.contentSize)
@@ -68,6 +69,7 @@ struct PalmhelmMacApp: App {
                 .environment(delegate.settings)
                 .environment(delegate.engine)
                 .environment(delegate.session)
+                .environment(delegate.modeSwitcher)
                 .environment(delegate.updates)
                 .displayLanguage()
                 .frame(width: 860, height: 620)
@@ -101,10 +103,24 @@ enum PairingRetry {
     }
 }
 
+/// 远程模式的刷新决策（纯函数）：只在已配对、离线、最近失败不是鉴权失败、且过了退避时间时刷新。
+/// 永不返回“自配对”——远程模式下没有自配对分支。
+enum RemoteRefreshRetry {
+    /// 已配对但未在线（离线，或冷启动尚未同步的 notPaired）、非鉴权失败、切换中不刷新，且过了退避。
+    static func shouldRefresh(link: MacSession.Link, isPaired: Bool, authFailed: Bool, switching: Bool, now: Date, nextTry: Date) -> Bool {
+        var down = false
+        switch link {
+        case .offline, .notPaired: down = true
+        case .connecting, .connected: break
+        }
+        return isPaired && down && !authFailed && !switching && now >= nextTry
+    }
+}
+
 // 启动：随 App 启动 Bridge，运行后自动配对并打开刘海浮层；之后轮询端口文件保持同步。挂在 App 生命周期上，不挂在主窗口。
 enum AppBoot {
     @MainActor
-    static func run(settings: EngineSettings, engine: BridgeEngine, session: MacSession, notch: NotchController) async {
+    static func run(settings: EngineSettings, engine: BridgeEngine, session: MacSession, notch: NotchController, switcher: ConnectionModeSwitcher) async {
         // 单测宿主不启动 Bridge，不留孤儿子进程。测试包是在 didFinishLaunching 之后注入的，不能只看 XCTest 类是否已加载。
         if RuntimeEnvironment.isTestHost { return }
         AppEventLog.shared.mark(.launch)
@@ -119,7 +135,7 @@ enum AppBoot {
             AppEventLog.shared.mark(.legacyImportDone)
             await settings.loadSecrets()
             AppEventLog.shared.mark(.secretsLoaded)
-            await session.loadCredentials()
+            await session.loadCredentials(mode: settings.connectionMode)
             AppEventLog.shared.mark(.credentialsLoaded)
         }
         let watchdog = Task { @MainActor in
@@ -135,12 +151,22 @@ enum AppBoot {
         if Task.isCancelled { AppEventLog.shared.mark(.credentialsLoaded, .cancelled); return } // 退出中：晚到的装载不是新的启动授权
         if let i = args.firstIndex(of: "-palmhelmImportEnv"), i + 1 < args.count { try? settings.importEnvFile(at: args[i + 1]) }
         await engine.bootOnLaunch() // 先接管上次退出后仍在后台运行的 Bridge（身份相符才接管；版本不同则替换），再按「随 App 启动」设置自动启动
+        switcher.bootReady = true // 接管窗口结束：此后才允许切换模式（R5）
         // 截图/走查用：-palmhelmPage stats 打开统计页；-palmhelmShowPairing 打开配对窗口（主窗口 onAppear 处理）；-palmhelmShowSettings 打开设置窗口。
         if args.contains("-palmhelmShowSettings") { NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil) }
         var paired: BridgeEngine.PalmhelmEndpoint? // 只记成功建立会话的端点
         var nextTry = Date.distantPast // 失败后退避 10 秒再重试，避免每 2 秒重新签码
         while !Task.isCancelled {
-            if engine.isRunning {
+            if settings.connectionMode == .remote {
+                // 远程模式：不读本机端口文件、不自配对；切换中、鉴权失败的连接都不刷新（判定见 RemoteRefreshRetry）
+                paired = nil
+                if RemoteRefreshRetry.shouldRefresh(link: session.link, isPaired: session.isPaired, authFailed: session.refreshAuthFailed, switching: session.modeSwitchInProgress, now: Date(), nextTry: nextTry) {
+                    await session.refresh()
+                    nextTry = Date().addingTimeInterval(10)
+                }
+            } else if session.modeSwitchInProgress {
+                // 本机分支：切换进行中整轮不配对、不刷新，旧连接的结果由切换器收束
+            } else if engine.isRunning {
                 if engine.portFile == nil { engine.readPortFile() }
                 if PairingRetry.shouldAttempt(isRunning: true, endpoint: engine.selfEndpoint, paired: paired, link: session.link, now: Date(), nextTry: nextTry), let ep = engine.selfEndpoint {
                     engine.diagnose("AppBoot 进入配对分支")
@@ -183,6 +209,14 @@ enum MenuBarCountLine {
     }
 }
 
+/// 远程模式下菜单首行：远程 Mac 的地址与连接阶段（不再显示本机 Bridge 的状态）。
+enum MenuBarRemoteLine {
+    static func text(host: String?, phase: String) -> String {
+        let target = host ?? String(localized: "未配对")
+        return String(localized: "远程 Mac · \(target) · \(phase)")
+    }
+}
+
 struct MenuBarMenu: View {
     @Environment(MacSession.self) private var session
     @Environment(BridgeEngine.self) private var engine
@@ -192,23 +226,30 @@ struct MenuBarMenu: View {
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
-        Text("Bridge · \(credentialsPending ? ConnectionPhase.credentialsWaitText(stalled: settings.keychainStalled) : engine.displayStatus) · \(engine.mode)")
+        let remote = settings.connectionMode == .remote
+        if remote {
+            Text(MenuBarRemoteLine.text(host: session.endpoint?.host, phase: currentPhase(engine, settings, session).label))
+        } else {
+            Text("Bridge · \(credentialsPending ? ConnectionPhase.credentialsWaitText(stalled: settings.keychainStalled) : engine.displayStatus) · \(engine.mode)")
+        }
         Text(MenuBarCountLine.text(pending: session.pendingApprovals.count, running: session.runningCommands.count, unresolved: session.unresolvedCommandCount, pendingSync: session.activityPendingSync))
         Divider()
         if let r = updates?.banner { Button("有新版本 \(r.title)…") { UpdateLinks.open(r.releaseURL) } }
         Button("打开 Palmhelm") { openWindow(id: "main"); NSApp.activate(ignoringOtherApps: true) }
         @Bindable var notch = NotchInteractionStore.shared
         Toggle("在刘海显示", isOn: $notch.enabled) // 与设置 › 外观 › 刘海的开关是同一个值，方便临时让出刘海
-        Button("配对新设备…") { openWindow(id: "pairing"); NSApp.activate(ignoringOtherApps: true) }.disabled(!engine.isRunning)
-        Divider()
-        switch engine.status {
-        case .running:
-            Button("停止 Bridge") { Task { await engine.stop() } }
-            Button("重启 Bridge") { Task { await engine.restart() } }
-        case .starting, .stopping:
-            Text(engine.status.label + "…")
-        case .stopped, .failed:
-            Button("启动 Bridge") { engine.start() }.disabled(!engine.settings.secretsLoaded)
+        if !remote {
+            Button("配对新设备…") { openWindow(id: "pairing"); NSApp.activate(ignoringOtherApps: true) }.disabled(!engine.isRunning)
+            Divider()
+            switch engine.status {
+            case .running:
+                Button("停止 Bridge") { Task { await engine.stop() } }
+                Button("重启 Bridge") { Task { await engine.restart() } }
+            case .starting, .stopping:
+                Text(engine.status.label + "…")
+            case .stopped, .failed:
+                Button("启动 Bridge") { engine.start() }.disabled(!engine.settings.secretsLoaded)
+            }
         }
         Divider()
         Button("退出 Palmhelm") { NSApp.terminate(nil) }

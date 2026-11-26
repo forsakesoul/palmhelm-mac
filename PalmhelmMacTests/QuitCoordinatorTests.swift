@@ -9,7 +9,7 @@ private final class FakeConfirmer: QuitConfirming {
     let answer: QuitAnswer
     var calls: [Bool] = [] // 每次弹窗时的 keepsAfterQuit
     init(_ answer: QuitAnswer) { self.answer = answer }
-    func confirm(keepsAfterQuit: Bool) -> QuitAnswer {
+    func confirm(keepsAfterQuit: Bool, mode: ConnectionMode) -> QuitAnswer {
         calls.append(keepsAfterQuit)
         return answer
     }
@@ -214,7 +214,7 @@ final class QuitEventDescriptorTests: XCTestCase {
 @MainActor
 private final class CountingConfirmer: QuitConfirming {
     var calls = 0
-    func confirm(keepsAfterQuit: Bool) -> QuitAnswer {
+    func confirm(keepsAfterQuit: Bool, mode: ConnectionMode) -> QuitAnswer {
         calls += 1
         return QuitAnswer(quit: true, suppress: false)
     }
