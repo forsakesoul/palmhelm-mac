@@ -165,6 +165,22 @@ final class NotchIslandTests: XCTestCase {
         XCTAssertEqual(NotchInteractionStore(defaults: d).trigger, .hover)
     }
 
+    // h29c：层级开关默认开、独立持久化；映射固定为 statusBar+5 与 statusBar，不借用显示开关。
+    func testAboveOthersPreferenceDefaultsPersistsAndMapsToTheLevel() {
+        let suite = "palmhelm.test.notch.level.\(UUID().uuidString)"
+        let d = UserDefaults(suiteName: suite)!
+        defer { d.removePersistentDomain(forName: suite) }
+        let store = NotchInteractionStore(defaults: d)
+        XCTAssertTrue(store.aboveOthers, "默认开")
+        XCTAssertNil(d.object(forKey: NotchInteractionStore.aboveOthersKey), "未写入前不落盘")
+        store.aboveOthers = false
+        XCTAssertEqual(d.object(forKey: NotchInteractionStore.aboveOthersKey) as? Bool, false)
+        XCTAssertFalse(NotchInteractionStore(defaults: d).aboveOthers, "重新读取沿用存储值")
+        XCTAssertTrue(store.enabled, "层级开关不影响显示开关")
+        XCTAssertEqual(NotchController.panelLevel(aboveOthers: true).rawValue, NSWindow.Level.statusBar.rawValue + 5)
+        XCTAssertEqual(NotchController.panelLevel(aboveOthers: false), .statusBar)
+    }
+
     func testInteractionStoreDoesNotWriteRealPreferencesInTestHost() {
         let before = UserDefaults.standard.object(forKey: NotchInteractionStore.key) as? NSObject
         let store = NotchInteractionStore()

@@ -236,6 +236,49 @@ extension NotchHostProbeTests {
         XCTAssertNil(c.toast.current)
     }
 
+    /// h29c：层级开关立即修改同一个面板；关掉刘海时不建窗；重新开启用已存的层级。
+    func testLevelSwitchChangesTheExistingPanelWithoutRebuildingIt() throws {
+        guard NSScreen.main != nil else { throw XCTSkip("没有屏幕") }
+        let suite = "palmhelm.test.notch.level.\(UUID().uuidString)"
+        let d = UserDefaults(suiteName: suite)!
+        defer { d.removePersistentDomain(forName: suite) }
+        let store = NotchInteractionStore(defaults: d)
+        let c = NotchController(interaction: store)
+        addTeardownBlock { @MainActor in c.detach() }
+        c.attach(session: workingSession())
+        let number = try XCTUnwrap(c.panelWindowNumber)
+        let panel = try XCTUnwrap(NSApp.window(withWindowNumber: number) as? NotchPanel)
+        XCTAssertEqual(panel.level, NotchController.panelLevel(aboveOthers: true), "默认开：新建面板用抬高后的层级")
+
+        store.aboveOthers = false
+        XCTAssertEqual(panel.level, .statusBar, "关闭时立即改同一个面板")
+        XCTAssertEqual(c.panelWindowNumber, number, "不重建窗口")
+        store.aboveOthers = true
+        XCTAssertEqual(panel.level, NotchController.panelLevel(aboveOthers: true))
+        XCTAssertEqual(c.panelWindowNumber, number)
+    }
+
+    func testLevelSwitchWhileNotchIsDisabledCreatesNoWindowAndReenableUsesStoredLevel() throws {
+        guard NSScreen.main != nil else { throw XCTSkip("没有屏幕") }
+        let suite = "palmhelm.test.notch.level.\(UUID().uuidString)"
+        let d = UserDefaults(suiteName: suite)!
+        defer { d.removePersistentDomain(forName: suite) }
+        let store = NotchInteractionStore(defaults: d)
+        store.enabled = false
+        let c = NotchController(interaction: store)
+        addTeardownBlock { @MainActor in c.detach() }
+        let session = workingSession() // 控制器只弱引用会话，测试期间由本地持有
+        c.attach(session: session)
+        store.aboveOthers = false
+        store.aboveOthers = true
+        XCTAssertNil(c.panelFrame, "刘海关闭时层级开关不建窗")
+        store.aboveOthers = false
+        store.enabled = true
+        let number = try XCTUnwrap(c.panelWindowNumber)
+        let panel = try XCTUnwrap(NSApp.window(withWindowNumber: number) as? NotchPanel)
+        XCTAssertEqual(panel.level, .statusBar, "重新开启用已存的层级")
+    }
+
     func testAttachWhileDisabledWaitsForTheSwitch() throws {
         guard NSScreen.main != nil else { throw XCTSkip("没有屏幕") }
         let suite = "palmhelm.test.notch.enabled.\(UUID().uuidString)"
