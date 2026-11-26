@@ -17606,6 +17606,958 @@
         }
       }
     },
+    "Bridge 回报的指纹与连接证书不一致，已放弃": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bridge reported a fingerprint that does not match the connection certificate. Pairing stopped."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bridge 回报的指纹与连接证书不一致，已放弃"
+          }
+        }
+      }
+    },
+    "Bridge 没有回报证书指纹，无法核对，已放弃": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bridge did not report a certificate fingerprint, so it cannot be verified. Pairing stopped."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bridge 没有回报证书指纹，无法核对，已放弃"
+          }
+        }
+      }
+    },
+    "一致，继续": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Matches, continue"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一致，继续"
+          }
+        }
+      }
+    },
+    "令牌无法写入钥匙串": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The token could not be saved to the Keychain"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "令牌无法写入钥匙串"
+          }
+        }
+      }
+    },
+    "会停止本机 Bridge。": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This stops the local Bridge."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会停止本机 Bridge。"
+          }
+        }
+      }
+    },
+    "会断开远程 Mac 并清空本机上的会话视图。": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This disconnects the remote Mac and clears the session view on this Mac."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会断开远程 Mac 并清空本机上的会话视图。"
+          }
+        }
+      }
+    },
+    "使用配对链接": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use pairing link"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用配对链接"
+          }
+        }
+      }
+    },
+    "先在连接设置里开启 https 并选局域网或 Tailscale 地址": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn on https in Connection settings and choose a LAN or Tailscale address first"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "先在连接设置里开启 https 并选局域网或 Tailscale 地址"
+          }
+        }
+      }
+    },
+    "切换连接方式？": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switch connection mode?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "切换连接方式？"
+          }
+        }
+      }
+    },
+    "可能已配对但未收到结果：请在 Mac 设备列表核对，并重新生成配对码": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "It may have paired, but no result was received. Check the device list on the Mac and generate a new pairing code."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可能已配对但未收到结果：请在 Mac 设备列表核对，并重新生成配对码"
+          }
+        }
+      }
+    },
+    "地址或端口不正确，未发送配对码": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The address or port is invalid. No pairing code was sent."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "地址或端口不正确，未发送配对码"
+          }
+        }
+      }
+    },
+    "广播的证书指纹与实际连接不一致，已放弃": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The advertised certificate fingerprint does not match the actual connection. Pairing stopped."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "广播的证书指纹与实际连接不一致，已放弃"
+          }
+        }
+      }
+    },
+    "当前不是远程模式": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not in remote mode"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前不是远程模式"
+          }
+        }
+      }
+    },
+    "指纹未确认，未发送配对码": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fingerprint not confirmed. No pairing code was sent."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "指纹未确认，未发送配对码"
+          }
+        }
+      }
+    },
+    "断开": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disconnect"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "断开"
+          }
+        }
+      }
+    },
+    "未能确认已从远程 Mac 移除本机，请在那台 Mac 的设备列表核对": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not confirm this Mac was removed from the remote Mac. Check the device list on that Mac."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未能确认已从远程 Mac 移除本机，请在那台 Mac 的设备列表核对"
+          }
+        }
+      }
+    },
+    "未连接远程 Mac": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not connected to a remote Mac"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未连接远程 Mac"
+          }
+        }
+      }
+    },
+    "本机 Bridge 未能停止，已保留本机模式": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The local Bridge did not stop. Staying in local mode."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本机 Bridge 未能停止，已保留本机模式"
+          }
+        }
+      }
+    },
+    "正在切换连接模式，请稍候": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switching connection mode, please wait"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在切换连接模式，请稍候"
+          }
+        }
+      }
+    },
+    "正在同步…": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Syncing…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在同步…"
+          }
+        }
+      }
+    },
+    "正在启动，稍后再切换": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Starting up. Try switching again shortly."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在启动，稍后再切换"
+          }
+        }
+      }
+    },
+    "正在读取凭据，稍后再切换": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reading credentials. Try switching again shortly."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在读取凭据，稍后再切换"
+          }
+        }
+      }
+    },
+    "正在读取凭据，稍后再断开": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reading credentials. Try disconnecting again shortly."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在读取凭据，稍后再断开"
+          }
+        }
+      }
+    },
+    "正在连接远程 Mac…": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connecting to the remote Mac…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在连接远程 Mac…"
+          }
+        }
+      }
+    },
+    "确认远程 Mac 的证书指纹": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Confirm the remote Mac's certificate fingerprint"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "确认远程 Mac 的证书指纹"
+          }
+        }
+      }
+    },
+    "证书指纹格式不正确，未发送配对码": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The certificate fingerprint format is invalid. No pairing code was sent."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "证书指纹格式不正确，未发送配对码"
+          }
+        }
+      }
+    },
+    "请与远程 Mac 设置 › 连接与设备 中的证书短指纹核对：%@": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check the short certificate fingerprint in Settings › Connection and Devices on the remote Mac: %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请与远程 Mac 设置 › 连接与设备 中的证书短指纹核对：%@"
+          }
+        }
+      }
+    },
+    "这台 Mac 没有提供证书指纹，无法确认身份，未发送配对码": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This Mac did not provide a certificate fingerprint, so its identity cannot be confirmed. No pairing code was sent."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这台 Mac 没有提供证书指纹，无法确认身份，未发送配对码"
+          }
+        }
+      }
+    },
+    "这台 Mac 的地址都连不上%@。请确认两台 Mac 在同一网络，或都开着 Tailscale": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "None of this Mac's addresses could be reached%@. Make sure both Macs are on the same network, or both have Tailscale on."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这台 Mac 的地址都连不上%@。请确认两台 Mac 在同一网络，或都开着 Tailscale"
+          }
+        }
+      }
+    },
+    "这台 Mac 运行内置 Bridge，手机与刘海连接本机。": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This Mac runs the built-in Bridge. Phones and the notch connect to this Mac."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这台 Mac 运行内置 Bridge，手机与刘海连接本机。"
+          }
+        }
+      }
+    },
+    "远程 Mac": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remote Mac"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "远程 Mac"
+          }
+        }
+      }
+    },
+    "远程 Mac %@ · %@": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remote Mac %@ · %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "远程 Mac %@ · %@"
+          }
+        }
+      }
+    },
+    "远程 Mac %@:%@ · %@。点击打开设置": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remote Mac %@:%@ · %@. Click to open Settings."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "远程 Mac %@:%@ · %@。点击打开设置"
+          }
+        }
+      }
+    },
+    "远程 Mac · %@ · %@": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remote Mac · %@ · %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "远程 Mac · %@ · %@"
+          }
+        }
+      }
+    },
+    "远程 Mac 地址": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remote Mac address"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "远程 Mac 地址"
+          }
+        }
+      }
+    },
+    "远程 Mac 已移除本机或令牌已失效，请重新配对": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The remote Mac removed this Mac or the token expired. Pair again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "远程 Mac 已移除本机或令牌已失效，请重新配对"
+          }
+        }
+      }
+    },
+    "远程 Mac 未配对": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remote Mac not paired"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "远程 Mac 未配对"
+          }
+        }
+      }
+    },
+    "远程 Mac 未配对。点击打开设置": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remote Mac not paired. Click to open Settings."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "远程 Mac 未配对。点击打开设置"
+          }
+        }
+      }
+    },
+    "远程 Mac 需开启 https，未发送配对码": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The remote Mac needs https turned on. No pairing code was sent."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "远程 Mac 需开启 https，未发送配对码"
+          }
+        }
+      }
+    },
+    "远程模式下暂不支持发送图片（图片只在这台 Mac 上）": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sending images is not supported in remote mode (images exist only on this Mac)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "远程模式下暂不支持发送图片（图片只在这台 Mac 上）"
+          }
+        }
+      }
+    },
+    "连接并控制另一台 Mac 上的 Palmhelm 会话。本机不运行 Bridge。": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connect to and control Palmhelm sessions on another Mac. This Mac runs no Bridge."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接并控制另一台 Mac 上的 Palmhelm 会话。本机不运行 Bridge。"
+          }
+        }
+      }
+    },
+    "连接方式": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connection mode"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接方式"
+          }
+        }
+      }
+    },
+    "连接状态": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connection status"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接状态"
+          }
+        }
+      }
+    },
+    "退出后刘海与提醒将停止，远程 Mac 上的会话不受影响。": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "After quitting, the notch and reminders stop. Sessions on the remote Mac are not affected."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "退出后刘海与提醒将停止，远程 Mac 上的会话不受影响。"
+          }
+        }
+      }
+    },
+    "配对": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pair"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "配对"
+          }
+        }
+      }
+    },
+    "配对码需要 6 位数字": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The pairing code must be 6 digits"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "配对码需要 6 位数字"
+          }
+        }
+      }
+    },
+    "配对链接": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pairing link"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "配对链接"
+          }
+        }
+      }
+    },
+    "配对链接格式不正确": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The pairing link format is invalid"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "配对链接格式不正确"
+          }
+        }
+      }
+    },
+    "先在连接设置里开启 https 并选局域网或 Tailscale 地址，才能复制配对链接。": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn on https in Connection settings and choose a LAN or Tailscale address first to copy the pairing link."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "先在连接设置里开启 https 并选局域网或 Tailscale 地址，才能复制配对链接。"
+          }
+        }
+      }
+    },
+    "在远程 Mac 的「配对新设备」窗口把本机设为可控后，才能发送和审批。": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set this Mac to controllable in the Pair New Device window on the remote Mac before you can send and approve."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在远程 Mac 的「配对新设备」窗口把本机设为可控后，才能发送和审批。"
+          }
+        }
+      }
+    },
+    "复制配对链接": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy pairing link"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制配对链接"
+          }
+        }
+      }
+    },
+    "未知": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unknown"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未知"
+          }
+        }
+      }
+    },
+    "本机 Bridge": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Local Bridge"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本机 Bridge"
+          }
+        }
+      }
+    },
+    "远程 Mac %@ 的记录 · 按参考 API 价估算 · 不是账单 / 订阅额度": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Records from remote Mac %@ · estimated at reference API prices · not a bill or subscription quota"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "远程 Mac %@ 的记录 · 按参考 API 价估算 · 不是账单 / 订阅额度"
+          }
+        }
+      }
+    },
+    "远程模式下本机不提供 Bridge，不能给手机发配对码。": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In remote mode this Mac does not provide a Bridge, so it cannot send pairing codes to a phone."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "远程模式下本机不提供 Bridge，不能给手机发配对码。"
+          }
+        }
+      }
+    },
+    "（试过：%@）": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "(tried: %@)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "（试过：%@）"
+          }
+        }
+      }
+    },
     "重命名对话…": {
       "extractionState": "extracted_with_value",
       "localizations": {

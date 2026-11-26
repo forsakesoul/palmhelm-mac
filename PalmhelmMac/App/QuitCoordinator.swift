@@ -52,11 +52,13 @@ enum QuitPolicy {
         request == .user && confirmEnabled
     }
 
-    static func alertText(keepsAfterQuit: Bool) -> (title: String, text: String) {
-        (
-            String(localized: "退出 Palmhelm？"),
-            keepsAfterQuit ? String(localized: "Bridge 会继续在后台运行，手机仍可连接。") : String(localized: "Bridge 会一起停止，手机将连不上这台 Mac。")
-        )
+    static func alertText(keepsAfterQuit: Bool, mode: ConnectionMode = .local) -> (title: String, text: String) {
+        let text: String
+        switch mode {
+        case .remote: text = String(localized: "退出后刘海与提醒将停止，远程 Mac 上的会话不受影响。")
+        case .local: text = keepsAfterQuit ? String(localized: "Bridge 会继续在后台运行，手机仍可连接。") : String(localized: "Bridge 会一起停止，手机将连不上这台 Mac。")
+        }
+        return (String(localized: "退出 Palmhelm？"), text)
     }
 }
 
@@ -69,13 +71,13 @@ struct QuitAnswer: Equatable {
 /// 确认弹窗的接缝：生产用原生 NSAlert，测试注入假回答。
 @MainActor
 protocol QuitConfirming {
-    func confirm(keepsAfterQuit: Bool) -> QuitAnswer
+    func confirm(keepsAfterQuit: Bool, mode: ConnectionMode) -> QuitAnswer
 }
 
 @MainActor
 struct QuitAlertConfirmer: QuitConfirming {
-    func confirm(keepsAfterQuit: Bool) -> QuitAnswer {
-        let copy = QuitPolicy.alertText(keepsAfterQuit: keepsAfterQuit)
+    func confirm(keepsAfterQuit: Bool, mode: ConnectionMode) -> QuitAnswer {
+        let copy = QuitPolicy.alertText(keepsAfterQuit: keepsAfterQuit, mode: mode)
         let alert = NSAlert()
         alert.messageText = copy.title
         alert.informativeText = copy.text
@@ -108,7 +110,7 @@ struct QuitCoordinator {
 
     func decide(event: QuitEventInfo?) -> QuitOutcome {
         if QuitPolicy.shouldConfirm(QuitPolicy.request(event), confirmEnabled: settings.confirmQuit) {
-            let answer = confirmer.confirm(keepsAfterQuit: engine.keepsAfterQuit)
+            let answer = confirmer.confirm(keepsAfterQuit: engine.keepsAfterQuit, mode: settings.connectionMode)
             // 「不再询问」跟随所选动作：只有点了「退出」才保存；取消时不保存，下次 ⌘Q 照常询问
             if answer.quit && answer.suppress { settings.confirmQuit = false }
             if !answer.quit { return .cancel }

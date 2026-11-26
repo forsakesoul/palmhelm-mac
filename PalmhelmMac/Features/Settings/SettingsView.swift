@@ -27,6 +27,13 @@ struct SettingsView: View {
             case .usagePrivacy: "hand.raised"; case .logs: "doc.text"; case .about: "info.circle"
             }
         }
+        /// 远程模式下不适用的区：本机引擎、飞书、本机日志。本机模式显示全部。
+        static func visible(for mode: ConnectionMode) -> [Pane] {
+            switch mode {
+            case .local: allCases
+            case .remote: allCases.filter { $0 != .engine && $0 != .feishu && $0 != .logs }
+            }
+        }
     }
     @State private var section: Pane
     @State private var columns = NavigationSplitViewVisibility.all
@@ -34,24 +41,28 @@ struct SettingsView: View {
     /// initialPane：截图等场景直接打开某一区；默认与原来一致（外观）。
     init(initialPane: Pane = .appearance) { _section = State(initialValue: initialPane) }
 
+    /// 当前模式下可见的区；选中的区被隐藏时回到外观。
+    private var visiblePanes: [Pane] { Pane.visible(for: settings.connectionMode) }
+    private var effectiveSection: Pane { visiblePanes.contains(section) ? section : .appearance }
+
     var body: some View {
         // 像系统设置一样侧栏始终在：原生分隔条拖到最窄再松手会把侧栏收起（#28 验收），这里立即恢复成两栏
         NavigationSplitView(columnVisibility: $columns) {
-            List(Pane.allCases, selection: Binding<Pane?>(get: { section }, set: { if let v = $0 { section = v } })) { sec in
+            List(visiblePanes, selection: Binding<Pane?>(get: { effectiveSection }, set: { if let v = $0 { section = v } })) { sec in
                 Label(sec.label, systemImage: sec.symbol).tag(sec)
             }
             .frame(minWidth: 240)
             .navigationSplitViewColumnWidth(min: 240, ideal: 250, max: 320) // 英文标签（如 Connection、Usage and…）最窄也要完整显示
             .toolbar(removing: .sidebarToggle) // 设置窗口像系统设置一样不折叠侧边栏：去掉孤零零悬在侧栏顶部的折叠按钮
         } detail: {
-            detail.navigationTitle(section.label)
+            detail.navigationTitle(effectiveSection.label)
         }
         .onChange(of: columns) { _, v in if v != .all { columns = .all } }
     }
 
     @ViewBuilder private var detail: some View {
         @Bindable var settings = settings
-        switch section {
+        switch effectiveSection {
         case .appearance: AppearanceSettings()
         case .engine:
         Form {
@@ -90,8 +101,10 @@ struct SettingsView: View {
             } message: { Text("手机与飞书会断开，直到再次启动。") }
         case .connection:
         Form {
+            ConnectionModeRows()
+            if settings.connectionMode == .remote { Section("远程 Mac") { RemoteMacRows() } }
             Section("这台设备") { ThisDeviceNameRows() }
-            Section("连接与直连") {
+            if settings.connectionMode == .local { Section("连接与直连") {
                 Toggle("https 直连（局域网与 Tailscale 都要开；同一 Wi‑Fi 的手机还可自动发现）", isOn: $settings.tls)
                 ListenIntentRows(settings: settings, engine: engine)
                 TextField("端口", value: $settings.port, format: .number.grouping(.never))
@@ -100,7 +113,7 @@ struct SettingsView: View {
                 if let spki = engine.portFile?.tls?.spkiSha256, let short = SPKI.shortFingerprint(spkiSha256: spki) {
                     LabeledContent("证书短指纹", value: short)
                 }
-            }
+            } }
         }
             .formStyle(.grouped)
         case .feishu:
@@ -329,7 +342,8 @@ private struct UsagePrivacySettings: View {
     var body: some View {
         @Bindable var settings = settings
         Form {
-            Section("账户额度") {
+            // 账户额度与账户来源读的是本机的 Codex / Claude 配置，远程模式下不适用
+            if settings.connectionMode == .local { Section("账户额度") {
                 Toggle("Claude 套餐与补充额度（OAuth 实验性）", isOn: $settings.claudeQuotaEnabled)
                 Text("默认关闭。开启并重启 Bridge 后，只读本机 Claude Code 登录钥匙串，首次读取可能弹出系统授权框。向 Anthropic 查询额度，不发送模型消息、不刷新过期令牌、不写回钥匙串；成功缓存 5 分钟，最短间隔 1 分钟。保留状态行的五小时与七天额度。补充 Fable 专属周额度与套餐；仅在返回有效数据时显示，不填入零值。")
                     .font(.caption).foregroundStyle(.secondary)
@@ -361,6 +375,8 @@ private struct UsagePrivacySettings: View {
             }
             .task { await session.loadClaudeStatusline(); await session.loadAccounts() }
             Section("账户来源（多个 Codex / Claude 配置目录）") { AccountSourcesRows() }
+            } // 本机模式的账户额度与账户来源
+
             Section("参考价格（models.dev）") { PricingSection() }
             Section("剪贴板图片缓存") {
                 LabeledContent("位置") { Text(AttachmentCache.defaultDirectory.path.replacingOccurrences(of: NSHomeDirectory(), with: "~")).font(.system(.caption, design: .monospaced)).textSelection(.enabled) }

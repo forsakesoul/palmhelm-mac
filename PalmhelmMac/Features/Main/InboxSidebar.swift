@@ -112,6 +112,7 @@ struct InboxSidebar: View {
     private var phase: ConnectionPhase { currentPhase(engine, settings, session) }
     private var connectionLine: String {
         let link = phase.label
+        if settings.connectionMode == .remote { return RemoteLinePresentation.line(endpoint: session.endpoint, phase: link) }
         guard let pf = engine.portFile else { return String(localized: "这台 Mac \(link)") }
         let reach: String = switch engine.reach {
         case .loopback: String(localized: "回环 http")
@@ -122,6 +123,7 @@ struct InboxSidebar: View {
         return String(localized: "这台 Mac \(link) · \(reach)")
     }
     private var connectionHelp: String {
+        if settings.connectionMode == .remote { return RemoteLinePresentation.help(endpoint: session.endpoint, phase: phase.label) }
         var lines: [String] = []
         if let pf = engine.portFile {
             lines.append(engine.reach == .loopback ? String(localized: "回环监听：只有这台 Mac 能连") : engine.reach == .lan && pf.transport == "https" ? String(localized: "局域网 https · 证书已固定 · 会尝试 Bonjour 广播") : String(localized: "手机需在同一网络"))

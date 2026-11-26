@@ -1,6 +1,7 @@
 import Foundation
 import AppKit
 import Observation
+import os
 import PalmhelmKit
 
 // Mac 端会话：与内置 Bridge 自动配对（本机 Hook 密钥签码 → /pair），之后与 iPhone 端同一套状态/事件流/审批/发送逻辑。
@@ -239,7 +240,12 @@ final class MacSession {
     func acceptRecommendation() { if let p = pendingRecommendation { lens = p.lens }; pendingRecommendation = nil; lensPrefsVersion += 1 }
     func ignoreRecommendation() { if let p = pendingRecommendation { lensPrefs.ignore(bridgeKey, signature: p.signature) }; pendingRecommendation = nil; lensPrefsVersion += 1 }
     /// Mac 自己配对的设备迁移后为可控；旧 Bridge 没有权限字段时按可控。
-    var canControl: Bool { (device ?? state?.device)?.canControl ?? true }
+    /// 本机模式沿用原缺省（缺字段视为可控）；远程模式只有明确为 control 且在线才可控，未知或缺字段一律不可控。
+    var canControl: Bool {
+        let d = device ?? state?.device
+        guard connectionModeProvider() == .remote else { return d?.canControl ?? true }
+        return link == .connected && d?.permission == DevicePermission.control.rawValue
+    }
 
     func markKey(_ targetId: String) -> String { ThreadIdentity.key(bridgeId: state?.bridge?.id, targetId: targetId) }
     func lastActivity(_ targetId: String) -> Int { history.last { $0.target?.id == targetId }?.seq ?? 0 }
@@ -449,10 +455,18 @@ final class MacSession {
     private var token: String? // 由 loadCredentials() 在后台线程装入，不在主线程读钥匙串
     private(set) var credentialsLoaded = false
 
-    func loadCredentials() async {
+    /// 远程模式只接受带完整 SPKI 的 https 端点；本机模式保持原有读取。
+    func loadCredentials(mode: ConnectionMode = .local) async {
         guard !credentialsLoaded else { return }
         token = await KeychainStore.loadAsync(account: KeychainStore.tokenAccount)
+        if mode == .remote { endpoint = KeychainStore.loadEndpoint(requirePinned: true) }
         credentialsLoaded = true
+    }
+
+    /// 切换到本机前固定旧连接的客户端（远程自撤用）：之后 forget 清掉的是会话，这个快照仍指向旧 Mac。
+    func currentClient(timeout: TimeInterval) -> BridgeClient? {
+        guard let endpoint, let token else { return nil }
+        return BridgeClient(endpoint: endpoint, token: token, timeout: timeout)
     }
     private var streamTask: Task<Void, Never>?
 
@@ -501,12 +515,28 @@ final class MacSession {
     /// 测试接缝：自配对用到的本机管理口与 /pair 调用（缺省走真实 HookClient / BridgeClient）。
     var hookFactory: @Sendable (_ dataDir: String, _ hookPort: Int) -> any HookAdmin = { HookClient(dataDir: $0, hookPort: $1) }
     var pairOverride: (@Sendable (BridgeEndpoint, String, String) async throws -> PairResponse)?
+    /// 远程配对的接缝（与 iPhone 端 AppSession 同名同签名）：默认走真实握手探测与配对请求。
+    var pairProbe: (@Sendable (BridgeEndpoint) async throws -> String)?
+    var pairSend: (@Sendable (BridgeEndpoint, String, String) async throws -> PairResponse)?
+    /// 令牌写入钥匙串的接缝（测试可模拟写入失败）。
+    var tokenSaver: @Sendable (String) -> Bool = { KeychainStore.save($0, account: KeychainStore.tokenAccount) }
+    /// 远程配对单飞；模式切换进行中由切换器置位，配对一律拒绝。
+    private(set) var pairing = false
+    /// 远程配对的取消代次：配对发起后视图离开即递增，尚未发出的 POST 不再发出，晚到结果不写入。
+    private var pairCancelEpoch = 0
+    func cancelRemotePairing() { pairCancelEpoch += 1 }
+    var modeSwitchInProgress = false
+    /// 当前连接模式的只读来源（模式的唯一权威是 EngineSettings，由 AppDelegate 接入；会话不另存）。
+    @ObservationIgnored var connectionModeProvider: () -> ConnectionMode = { .local }
+    /// SSE 事件源的测试接缝（缺省走真实 BridgeClient.events）。
+    @ObservationIgnored var eventsOverride: (@Sendable (Int?) async throws -> AsyncThrowingStream<BridgeEvent, Error>)?
     /// 最近一次 refresh 失败是不是鉴权失败（401 / 403：令牌无效或设备已被撤销）。只有它才需要重新自配对；网络 / 启动时序造成的离线不是。
     private(set) var refreshAuthFailed = false
 
     /// Bridge 启动后调用：已有令牌 → 先用它刷新（端点只是 host / 端口变化、传输与证书 spki 相同就更新端点后复用令牌）；
     /// 只有没有令牌、证书身份变了、或刷新被鉴权拒绝（401 / 403 / 设备已撤销）才用本机 Hook 密钥签码重新自配对。网络 / 时序离线不新签码，由调用方按退避重试 refresh。
     func ensurePaired(engine: BridgeEngine) async {
+        guard engine.settings.connectionMode == .local else { return } // 远程模式不走自配对（I2）
         guard let pf = engine.portFile, let ep = engine.selfEndpoint else { return }
         let want = BridgeEndpoint(host: ep.host, port: ep.port, transport: ep.https ? .https : .http, spkiSha256: ep.spki)
         await ensurePaired(want: want, hookPort: pf.hookPort, dataDir: engine.activeDataDir)
@@ -526,23 +556,31 @@ final class MacSession {
             endpoint = want
             diagnose("ensurePaired 端点变化但证书相同，复用令牌")
         }
+        let gen = sessionGen
         await refresh()
+        guard gen == sessionGen else { return } // 刷新期间已切换 / 忘记配对：过期结果不再触发自配对
         if case .offline = link, refreshAuthFailed { await selfPair(dataDir: dataDir, hookPort: hookPort, endpoint: want) }
     }
 
+    /// 自配对。开始时记下代次；每个等待点之后、任何写入（Keychain、端点、令牌、提权、清理设备）之前复核，
+    /// 代次已变（忘记配对、切换模式）时成功与错误一律丢弃，不改连接态。
     private func selfPair(dataDir: String, hookPort: Int, endpoint ep: BridgeEndpoint) async {
+        let gen = sessionGen
         link = .connecting
         diagnose("selfPair 开始")
         let hook = hookFactory(dataDir, hookPort)
         let pairCode: String
         do { pairCode = try await hook.issuePairCode().code } catch {
+            guard gen == sessionGen else { return }
             diagnose("selfPair hook_issue_failed")
             link = .offline(LText(Self.describe(error)))
             return
         }
+        guard gen == sessionGen else { return }
         do {
             let r: PairResponse
             if let f = pairOverride { r = try await f(ep, pairCode, deviceName) } else { r = try await BridgeClient(endpoint: ep, token: nil).pair(code: pairCode, deviceName: deviceName) }
+            guard gen == sessionGen else { return }
             if ep.transport == .https, r.spkiSha256 != ep.spkiSha256 {
                 diagnose("selfPair spki_mismatch")
                 link = .offline(LText(String(localized: "指纹不一致")))
@@ -556,10 +594,14 @@ final class MacSession {
             endpoint = ep
             diagnose("selfPair 成功")
             // 新配对的设备默认只读；这台 Mac 是 owner 本机，配对后用本机管理口把自己设为可控（失败时界面按只读提示）
+            guard gen == sessionGen else { return }
             try? await hook.setPermission(deviceId: r.deviceId, .control)
-            await pruneStaleSelfDevices(hook, keeping: r.deviceId)
+            guard gen == sessionGen else { return }
+            await pruneStaleSelfDevices(hook, keeping: r.deviceId, gen: gen)
+            guard gen == sessionGen else { return } // 清理等待期间已切换：不再用当前会话刷新
             await refresh()
         } catch {
+            guard gen == sessionGen else { return }
             diagnose("selfPair pair_failed")
             link = .offline(LText(Self.describe(error)))
         }
@@ -650,12 +692,150 @@ final class MacSession {
     /// 本机上一次自配对得到的设备 id（偏好里保存）：只有它能证明是「这台 Mac 先前的记录」。显示名相同不是身份（O1-364 R6）。
     static let selfDeviceIdKey = "palmhelm.mac.selfDeviceId"
     /// 只撤销本机记录的上一台设备 id（且它仍有效）；没有记录或身份不明时一律保留，交给用户在设备表里管理。
-    func pruneStaleSelfDevices(_ hook: any HookAdmin, keeping deviceId: String) async {
+    /// gen：调用方开始时的连接代次。列表返回后、删除前复核：过期的清理不再撤销任何设备。
+    func pruneStaleSelfDevices(_ hook: any HookAdmin, keeping deviceId: String, gen: Int) async {
         let previous = preferences.string(forKey: Self.selfDeviceIdKey)
         preferences.set(deviceId, forKey: Self.selfDeviceIdKey)
         guard let previous, previous != deviceId else { return }
-        guard let list = try? await hook.devices(all: false), list.contains(where: { $0.id == previous && !$0.revoked }) else { return }
+        guard let list = try? await hook.devices(all: false), gen == sessionGen else { return }
+        guard list.contains(where: { $0.id == previous && !$0.revoked }) else { return }
         try? await hook.remove(deviceId: previous)
+    }
+
+    // ---- 远程配对（远程模式：配对到另一台 Mac）----
+
+    /// 深链 / 二维码的配对链接。
+    @discardableResult
+    func pairRemote(link pl: PairLink, confirm: ((String) async -> Bool)? = nil) async -> Bool {
+        await pairRemote(host: pl.host, port: pl.port, transport: pl.tls ? .https : .http, code: pl.code, expectedSpki: pl.fp, extra: pl.extra, confirm: confirm)
+    }
+
+    /// 手动输入的远程配对（只接受 https）。expectedSpki 为链接里的完整摘要；缺失时必须经 confirm 人工确认短指纹。
+    @discardableResult
+    func pairRemote(host: String, port: Int, code: String, expectedSpki: String? = nil, extra: [BridgeEndpoint] = [], confirm: ((String) async -> Bool)? = nil) async -> Bool {
+        await pairRemote(host: host, port: port, transport: .https, code: code, expectedSpki: expectedSpki, extra: extra, confirm: confirm)
+    }
+
+    /// 一次配对尝试的资格：开始时捕获（连接代次、取消代次），之后所有关口都用 pairAttemptValid 核对同一份资格。
+    private struct PairAttempt {
+        let connection: Int
+        let cancel: Int
+        /// 发起任务被取消的标记：Kit 的 withDeadline 在独立 Task 里跑 probe / send，那里读不到父任务的 Task.isCancelled。
+        let taskCancelled: OSAllocatedUnfairLock<Bool>
+    }
+
+    /// 尝试资格：同一连接、发起任务未取消、未被视图取消（离开 / 忘记）、未在切换、仍是远程模式。
+    private func pairAttemptValid(_ attempt: PairAttempt) -> Bool {
+        !attempt.taskCancelled.withLock { $0 } && attempt.cancel == pairCancelEpoch && pairConnectionOwned(attempt)
+    }
+
+    /// 连接仍归属本次尝试：同一连接代次、未在切换、仍为远程。切回本机后本机自配对写的 connecting 不属于本次尝试。
+    private func pairConnectionOwned(_ attempt: PairAttempt) -> Bool {
+        attempt.connection == connectionEpoch && !modeSwitchInProgress && connectionModeProvider() == .remote
+    }
+
+    /// 未提交地结束尝试：连接仍归属本次尝试且仍是 connecting 时收束为未配对（单飞保证这个 connecting 是本次写的）；不覆盖切换后或他处写入的状态。
+    private func abandonPairAttempt(_ attempt: PairAttempt) {
+        guard pairConnectionOwned(attempt), link == .connecting else { return }
+        link = .notPaired
+    }
+
+    private func pairRemote(host: String, port: Int, transport: Transport, code: String, expectedSpki: String?, extra: [BridgeEndpoint], confirm: ((String) async -> Bool)?) async -> Bool {
+        // 排队后、尚未进入时已被取消：零请求，不改连接态
+        guard !Task.isCancelled else { return false }
+        // 模式不对或已配对时直接拒绝，不改连接态（本机模式下不能把 link 写成远程的离线）
+        // 凭据未装载时 isPaired 不可信（旧令牌可能还在读取中）：先不发任何请求
+        guard !pairing, !modeSwitchInProgress, credentialsLoaded, connectionModeProvider() == .remote, !isPaired else { return false }
+        guard !host.isEmpty, !host.contains(where: \.isWhitespace), (1...65535).contains(port) else {
+            link = .offline(LText(String(localized: "地址或端口不正确，未发送配对码"))); return false
+        }
+        guard code.count == 6, code.allSatisfy({ $0.isASCII && $0.isNumber }) else {
+            link = .offline(LText(String(localized: "配对码需要 6 位数字"))); return false
+        }
+        // 远程只接受 https（包括回环与深链附带的所有候选）
+        guard transport == .https, !extra.contains(where: { $0.transport != .https }) else {
+            link = .offline(LText(String(localized: "远程 Mac 需开启 https，未发送配对码"))); return false
+        }
+        if let expectedSpki, !KeychainStore.isValidPin(expectedSpki) {
+            link = .offline(LText(String(localized: "证书指纹格式不正确，未发送配对码"))); return false
+        }
+        if expectedSpki == nil, confirm == nil {
+            link = .offline(LText(String(localized: "这台 Mac 没有提供证书指纹，无法确认身份，未发送配对码"))); return false
+        }
+        pairing = true; defer { pairing = false }
+        let attempt = PairAttempt(connection: connectionEpoch, cancel: pairCancelEpoch, taskCancelled: OSAllocatedUnfairLock(initialState: false))
+        let primary = BridgeEndpoint(host: host, port: port, transport: transport)
+        link = .connecting
+        let name = deviceName
+        let outcome = await withTaskCancellationHandler { await PairRoute.pair(
+            candidates: [primary] + extra, expectedSpki: expectedSpki,
+            probeDeadline: BridgeAPI.Deadline.pairProbe, sendDeadline: BridgeAPI.Deadline.pairSend,
+            probe: { [pairProbe] ep in
+                // 资格失效即停：不再探测后面的地址
+                guard self.pairAttemptValid(attempt) else { throw CancellationError() }
+                if let pairProbe { return try await pairProbe(ep) }
+                return try await BridgeClient.probe(host: ep.host, port: ep.port)
+            },
+            confirm: { spki in
+                // 链接带完整摘要时，PairRoute 已在 confirm 之前按实际握手比对过，不需要人工确认
+                if expectedSpki != nil { return self.pairAttemptValid(attempt) }
+                // 展示确认之前核对资格：资格已失效（离开、取消、切换）时不展示
+                guard self.pairAttemptValid(attempt), let short = SPKI.shortFingerprint(spkiSha256: spki), let confirm else { return false }
+                let answer = await confirm(short)
+                return answer && self.pairAttemptValid(attempt) // 确认返回后再核对
+            },
+            send: { [pairSend] ep in
+                // 真正发 POST 之前复核：过期的配对码不能再消耗、不能在 Mac B 创建设备
+                guard self.pairAttemptValid(attempt) else { throw CancellationError() }
+                if let pairSend { return try await pairSend(ep, code, name) }
+                return try await BridgeClient(endpoint: ep, token: nil).pair(code: code, deviceName: name)
+            },
+            reportedSpki: { $0.spkiSha256 })
+        } onCancel: { [taskCancelled = attempt.taskCancelled] in taskCancelled.withLock { $0 = true } }
+        guard pairAttemptValid(attempt) else { // 期间忘记配对 / 切换模式 / 视图离开 / 任务取消：过期结果一律不写
+            abandonPairAttempt(attempt)
+            return false
+        }
+        let success: PairRoute.Success<PairResponse>
+        switch outcome {
+        case .success(let s): success = s
+        case .failure(.resultUnknown):
+            link = .offline(LText(String(localized: "可能已配对但未收到结果：请在 Mac 设备列表核对，并重新生成配对码")))
+            return false
+        case .failure(.unreachable(let tried)):
+            let where_ = tried.isEmpty ? "" : String(localized: "（试过：\(tried.joined(separator: "、"))）")
+            link = .offline(LText(String(localized: "这台 Mac 的地址都连不上\(where_)。请确认两台 Mac 在同一网络，或都开着 Tailscale")))
+            return false
+        case .failure(.stopped(let error)):
+            switch error as? PairRoute.PairRouteError {
+            case .fingerprintMismatch?: link = .offline(LText(String(localized: "广播的证书指纹与实际连接不一致，已放弃")))
+            case .notConfirmed?: link = .offline(LText(String(localized: "指纹未确认，未发送配对码")))
+            case .reportedFingerprintMismatch?: link = .offline(LText(String(localized: "Bridge 回报的指纹与连接证书不一致，已放弃")))
+            case .reportedFingerprintMissing?: link = .offline(LText(String(localized: "Bridge 没有回报证书指纹，无法核对，已放弃")))
+            case nil: link = .offline(LText(Self.describe(error)))
+            }
+            return false
+        }
+        // 令牌先写入钥匙串，成功才提交端点与内存令牌：写失败时不留下指向未保存令牌的端点
+        let ep = success.endpoint, r = success.response
+        guard tokenSaver(r.token) else {
+            link = .offline(LText(String(localized: "令牌无法写入钥匙串")))
+            return false
+        }
+        KeychainStore.saveEndpoint(ep)
+        token = r.token
+        endpoint = ep
+        diagnose("remotePair 成功")
+        // 凭据已提交，首次同步属于连接本身：不随发起任务（设置页）取消。否则 GET state 以 CancellationError 早退，
+        // link 停在 connecting，而 AppBoot 只重试 offline / notPaired。
+        await withTaskCancellationHandler {
+            await Task {
+                // 排队期间可能已断开 / 切换：入场时连接不再归属本次尝试就不同步，避免以新代次重开旧连接的事件流
+                guard self.pairConnectionOwned(attempt) else { return }
+                await self.refresh()
+            }.value
+        } onCancel: { [taskCancelled = attempt.taskCancelled] in taskCancelled.withLock { $0 = true } }
+        return pairAttemptValid(attempt) // 期间已取消或切换：结果已提交，但本次调用不再报告成功
     }
 
     // ---- 审批 ----
@@ -1007,7 +1187,9 @@ final class MacSession {
                 self.streamState = String(localized: "连接中")
                 do {
                     let client = BridgeClient(endpoint: endpoint, token: token)
-                    for try await ev in try await client.events(since: since) {
+                    let source: AsyncThrowingStream<BridgeEvent, Error>
+                    if let override = self.eventsOverride { source = try await override(since) } else { source = try await client.events(since: since) }
+                    for try await ev in source {
                         guard gen == self.streamGen else { return }
                         self.streamState = String(localized: "在线")
                         switch ev {
@@ -1037,11 +1219,12 @@ final class MacSession {
                     if gen == self.streamGen { self.workingSince = [:] } // 流结束：计时从下次观测重新起算
                 } catch {
                     guard gen == self.streamGen else { return }
+                    if self.isRemoteAuthLost(error) { self.handleRemoteAuthLost(); return } // 鉴权失效：停流，不再按断线重试
                     self.workingSince = [:]
                     self.streamState = String(localized: "断开，重试中")
                     if self.link == .connected { self.link = .offline(LText(String(localized: "事件流断开，重试中"))) }
                 }
-                try? await Task.sleep(for: .seconds(3))
+                await self.streamRetrySleep(.seconds(3))
             }
         }
     }
@@ -1092,11 +1275,32 @@ final class MacSession {
             startStream()
         } catch {
             guard gen == sessionGen, !(error is CancellationError) else { return }
-            if case BridgeError.http(let code) = error, code == 401 || code == 403 { refreshAuthFailed = true } // 令牌无效 / 设备已撤销：需要重新自配对
+            if case BridgeError.http(let code) = error, code == 401 || code == 403 {
+                refreshAuthFailed = true // 令牌无效 / 设备已撤销：需要重新自配对（远程的会话清理已在 fetchState 完成）
+            }
             link = .offline(LText(Self.describe(error)))
             diagnose("refresh_failed")
         }
     }
+
+    /// 远程模式下的鉴权失效（GET state 或 SSE 握手 / 流中的 401 / 403）。写接口的 403 是权限不足，不走这里。
+    private func isRemoteAuthLost(_ error: Error) -> Bool {
+        guard connectionModeProvider() == .remote, case BridgeError.http(let code) = error else { return false }
+        return code == 401 || code == 403
+    }
+
+    /// 远程 Mac 已移除本机或令牌失效：清掉令牌、端点、审批与设备，停止事件流（不再每 3 秒重连），由用户重新配对。
+    /// 降权（权限变为只读）不是撤销，不进入这里。
+    private func handleRemoteAuthLost() {
+        forget()
+        link = .offline(LText(String(localized: "远程 Mac 已移除本机或令牌已失效，请重新配对")))
+        onConnectionForgotten?() // 固定的审批卡与提示属于旧连接：由界面层一并重置（普通断线不走这里）
+    }
+
+    /// 连接被彻底遗忘（鉴权失效导致的自动撤销）时通知界面层，AppDelegate 接到刘海的 resetConnection。
+    @ObservationIgnored var onConnectionForgotten: (() -> Void)?
+    /// SSE 断线后的重试等待（测试可注入，以便确定地断言“没有进入重试”）。
+    @ObservationIgnored var streamRetrySleep: @Sendable (Duration) async -> Void = { try? await Task.sleep(for: $0) }
 
     /// 目标快照的唯一写入口：pullState 与 SSE 的 targets 帧都经这里，工作计时随之更新。
     /// SSE targets 帧的写入计数（只在 applyTargetsFrame 递增）。
@@ -1143,10 +1347,17 @@ final class MacSession {
 
     /// 拉一次权威 state 并合并，不改连接态（refresh / ready / 切换完成共用）。
     /// 共同提交点：HTTP 返回后先复核会话代次，过期（期间 stopStream/disconnect 过）就整体丢弃，不写任何状态。
+    /// 远程模式的鉴权失效在这里统一处理（refresh、SSE ready、切换后补拉等所有读取都经过它）：只有仍是当前代次的响应才清会话，过期的 401 不影响新连接。
     private func fetchState() async throws -> BridgeState? {
-        if let f = stateOverride { return try await f() }
-        guard let endpoint, let token else { return nil }
-        return try await BridgeClient(endpoint: endpoint, token: token).state()
+        let gen = sessionGen
+        do {
+            if let f = stateOverride { return try await f() }
+            guard let endpoint, let token else { return nil }
+            return try await BridgeClient(endpoint: endpoint, token: token).state()
+        } catch {
+            if isRemoteAuthLost(error), gen == sessionGen { handleRemoteAuthLost() }
+            throw error
+        }
     }
 
     /// device 的独立版本号：每次 SSE device 帧写入都 +1。GET state 开始时记下它，返回时若已变（期间收到了更新的帧），
@@ -2584,6 +2795,11 @@ final class MacSession {
         let snap = composerDrafts[key] ?? ComposerDraft()
         let body = snap.text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !(body.isEmpty && snap.attachments.isEmpty) else { return false }
+        // 服务边界：远程模式不转发图片（远端拿不到文件字节）。零发送、草稿与附件原样保留；普通文本照常发送
+        if !snap.attachments.isEmpty, connectionModeProvider() == .remote {
+            composerNotes[key] = LText(String(localized: "远程模式下暂不支持发送图片（图片只在这台 Mac 上）"))
+            return false
+        }
         // 发送前确认所有附件文件还在、读得了（加入后被删 / 移走）：缺失 → 零发送、保留草稿、说清缺哪个
         let missing = ComposerRules.missingFiles(paths: snap.attachments.map(\.path))
         guard missing.isEmpty else { composerNotes[key] = LText(Self.missingNote(missing, suffix: String(localized: "没有发送，草稿已保留"))); return false }
@@ -2739,6 +2955,8 @@ final class MacSession {
         withdrawnOffers = [:] // 忘记配对：残留的撤回原文提示一并清掉，同一 Bridge 重新配对也不复活（O1-331 R2）
         transcripts = [:]; transcriptRequestBook.removeAll()
         stopStream() // 也让在途同步失效
+        inflight = [:]; lastSync = nil // 本连接的发送状态与同步时间不能带到下一个连接
+        decideError = [:]; lastDecisionNote = nil; lastDecisionWarn = false; noteClear?.cancel(); noteClear = nil // 审批错误、提示与其定时器随连接结束
         sent = []; history = []; commands = [:]; commandWindow = CommandWindow(); outgoingTracker = OutgoingStatusTracker(); pendingProgress.clear(); sseSeq = 0; lastFactSeq = [:]; device = nil; approvals = [:]
         composerDrafts = [:]; composerBusy = []; switchTrack = nil // 取消配对：草稿与切换追踪一并清掉
         questionDrafts = [:]; requestReasons = [:]; reminderSends = [:]; composerNotes = [:]; beginNavigation(); selectedRequest = nil
@@ -2790,16 +3008,29 @@ enum ConnectionPhase: Equatable {
     case engineFailed(LText)
     case preparingPairing
     case pairing
+    // 远程模式：只看凭据、连接态与远程 Mac，不看本机 Bridge 进程
+    case remoteNotPaired
+    case remoteConnecting
     case connected
     case offline(LText)
 
     static func from(
+        mode: ConnectionMode = .local,
         engineStatus: BridgeEngine.Status,
         portFileReady: Bool,
         credentialsLoaded: Bool,
         secretsLoaded: Bool,
         link: MacSession.Link
     ) -> ConnectionPhase {
+        if mode == .remote {
+            guard credentialsLoaded else { return .readingCredentials }
+            switch link {
+            case .notPaired: return .remoteNotPaired
+            case .connecting: return .remoteConnecting
+            case .connected: return .connected
+            case .offline(let reason): return .offline(reason)
+            }
+        }
         guard credentialsLoaded, secretsLoaded else { return .readingCredentials }
         switch engineStatus {
         case .stopped: return .engineOff
@@ -2831,6 +3062,8 @@ enum ConnectionPhase: Equatable {
         case .engineFailed(let reason): String(localized: "Bridge 启动失败：\(reason.text)")
         case .preparingPairing: String(localized: "准备自动配对…")
         case .pairing: String(localized: "正在配对/同步…")
+        case .remoteNotPaired: String(localized: "未连接远程 Mac")
+        case .remoteConnecting: String(localized: "正在连接远程 Mac…")
         case .connected: String(localized: "在线")
         case .offline(let reason): String(localized: "离线：\(reason.text)")
         }
@@ -2839,8 +3072,8 @@ enum ConnectionPhase: Equatable {
     /// 过渡态（指示灯用黄色）：正在读取、启动、停止或配对，结果尚未确定。
     var isTransitional: Bool {
         switch self {
-        case .readingCredentials, .engineStarting, .engineStopping, .preparingPairing, .pairing: true
-        case .engineOff, .engineFailed, .connected, .offline: false
+        case .readingCredentials, .engineStarting, .engineStopping, .preparingPairing, .pairing, .remoteConnecting: true
+        case .engineOff, .engineFailed, .remoteNotPaired, .connected, .offline: false
         }
     }
 }
