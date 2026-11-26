@@ -823,7 +823,7 @@ private struct WorkingRow: View {
                         .padding(.top, 4)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(target.agentName ?? target.projectName).font(.caption.weight(.semibold)).lineLimit(1).truncationMode(.middle)
-                        if let topic = target.topic?.text.trimmingCharacters(in: .whitespacesAndNewlines), !topic.isEmpty {
+                        if let topic = target.statsTopic, !topic.isEmpty {
                             Text(topic).font(.caption2).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
                         }
                     }
@@ -836,7 +836,7 @@ private struct WorkingRow: View {
             }
             .buttonStyle(.plain)
             .help("打开这个会话")
-            .accessibilityLabel("\(target.agentName ?? target.projectName)\(target.topic.map { "，\($0.text)" } ?? "")，\(session.activityText(target, at: ctx.date))")
+            .accessibilityLabel("\(target.agentName ?? target.projectName)\(target.statsTopic.map { "，\($0)" } ?? "")，\(session.activityText(target, at: ctx.date))")
         }
     }
 }
@@ -1199,5 +1199,15 @@ private struct LegacyUsage: View {
             }
         }
         .card()
+    }
+}
+
+fileprivate extension TargetSummary {
+    /// 统计行的第二行：自定义名（#134）优先，其次会话主题；空白视为没有。
+    var statsTopic: String? {
+        let custom = customTitle?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !custom.isEmpty { return custom }
+        let topic = self.topic?.text.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return topic.isEmpty ? nil : topic
     }
 }

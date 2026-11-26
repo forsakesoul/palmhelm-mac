@@ -97,6 +97,8 @@ final class MacSession {
     var selectedTargetSummary: TargetSummary? { state?.targets.first { $0.id == selectedTarget } }
     /// 本机发出消息的状态（O1-365）：与 iOS 同一 Kit 判定；只前进，不参与观察（视图读取时推进，结果幂等）。
     @ObservationIgnored var outgoingTracker = OutgoingStatusTracker()
+    /// 自配对换了凭据后，尚未拿到新 Bridge 的快照：改名范围一律视为失效（C3）。
+    @ObservationIgnored private var awaitingFreshState = false
     func targetWorking(_ targetId: String?) -> Bool {
         guard let id = targetId, let t = state?.targets.first(where: { $0.id == id }) else { return false }
         return ThreadIdentity.status(t) == .working
@@ -586,6 +588,8 @@ final class MacSession {
             }
             KeychainStore.save(r.token, account: KeychainStore.tokenAccount)
             KeychainStore.saveEndpoint(ep)
+            stopStream() // 换了凭据：旧范围立即失效；拿到新 Bridge 的快照之前，改名一律不发（R-b）
+            awaitingFreshState = true
             token = r.token
             endpoint = ep
             diagnose("selfPair 成功")
@@ -625,6 +629,61 @@ final class MacSession {
         deviceName = d.name
         for (k, c) in commands where c.device?.id == d.id { commands[k]?.device?.name = d.name }
         return nil
+    }
+
+    /// 测试接缝：替换 Bridge 的改名请求（参数：线程 targetId、已裁剪的名字，nil 为清除）。
+    var titleOverride: (@Sendable (String, String?) async throws -> TitleResult)?
+    /// 改名范围：弹层打开时捕获（目标、连接代次、连接的 Bridge），提交前复核（C3）。
+    func titleScope(_ targetId: String) -> LedgerScope {
+        LedgerScope(targetId: targetId, epoch: sessionGen, bridgeId: connectionId, accountId: nil)
+    }
+    func titleScopeHeld(_ scope: LedgerScope) -> Bool { !awaitingFreshState && titleScope(scope.targetId) == scope }
+    /// 过期提示按结果分三种（§3.3）：提交前失效 → 未保存；已成功后失效 → 已保存在原连接；结果未知 → 可能已保存。
+    static var titleNotSaved: String { String(localized: "连接已切换，名字未保存") }
+    static var titleSavedOnOldConnection: String { String(localized: "名字已保存在原连接，请切回查看") }
+    static var titleUnknownOnOldConnection: String { String(localized: "名字可能已保存，请切回原连接确认") }
+    /// 对话改名（#134）：名字的规范化与校验在 Bridge。PUT 前复核范围；成功后经 pullState 权威同步（不直接改本地 target），之后再复核。
+    func setTitle(_ scope: LedgerScope, _ raw: String?) async -> (ok: Bool, message: LText) {
+        guard titleOverride != nil || (endpoint != nil && token != nil) else { return (false, LText(String(localized: "未配对"))) }
+        guard titleScopeHeld(scope) else { return (false, LText(Self.titleNotSaved)) }
+        guard canControl else { return (false, LText(Self.readOnlyNote)) }
+        let result: TitleResult
+        do {
+            if let titleOverride { result = try await titleOverride(scope.targetId, raw) }
+            else if let endpoint, let token { result = try await BridgeClient(endpoint: endpoint, token: token).setTitle(targetId: scope.targetId, title: raw) }
+            else { return (false, LText(String(localized: "未配对"))) }
+        } catch {
+            guard titleScopeHeld(scope) else { return (false, LText(Self.titleUnknownOnOldConnection)) }
+            return (false, LText(String(localized: "改名没有成功：\(Self.describe(error))")))
+        }
+        switch result {
+        case .failed(let status, let code):
+            // 401/403 可能是撤销或降权发生在写入之后、回包之前：结果不确定，不能断言未保存。
+            // 401/403/5xx 可能是写入之后的复核失败（如库错误）：标题可能已保存，不能断言未保存。
+            guard titleScopeHeld(scope) else { return (false, LText((status == 401 || status == 403 || status >= 500) ? Self.titleUnknownOnOldConnection : Self.titleNotSaved)) }
+            return (false, LText(Self.titleFailure(status: status, code: code)))
+        case .ok(_, let herdr):
+            guard titleScopeHeld(scope) else { return (false, LText(Self.titleSavedOnOldConnection)) }
+            try? await pullState() // 名字已保存；同步失败不算改名失败，下一帧 targets 会带上
+            guard titleScopeHeld(scope) else { return (false, LText(Self.titleSavedOnOldConnection)) }
+            return herdr == "synced" ? (true, LText(String(localized: "已保存"))) : (true, LText(String(localized: "名字已保存；Herdr 窗口名未同步")))
+        }
+    }
+
+    /// 改名失败的固定文案（按错误码；旧 Bridge 无该接口时 404 且无 target_not_found，提示版本过旧）。
+    static func titleFailure(status: Int, code: String?) -> String {
+        switch code {
+        case "invalid_title", "bad_request": return String(localized: "Bridge 不接受这个名字，请换一个")
+        case "read_only": return readOnlyNote
+        case "target_not_found": return String(localized: "这个对话已不在 Bridge 上")
+        default: break
+        }
+        switch status {
+        case 400: return String(localized: "Bridge 不接受这个名字，请换一个")
+        case 403, 409: return readOnlyNote
+        case 404: return String(localized: "这台 Mac 上的 Bridge 版本过旧，不支持对话改名")
+        default: return String(localized: "改名没有成功（\(code ?? "HTTP \(status)")）")
+        }
     }
 
     /// 自配对成功后清掉旧的「这台 Mac」记录：仅按名称收窄——只撤销名称与本机 deviceName 完全相同、未撤销、且不是本次 deviceId 的设备（iPhone 等其他设备绝不碰）。
@@ -1244,6 +1303,11 @@ final class MacSession {
     @ObservationIgnored var streamRetrySleep: @Sendable (Duration) async -> Void = { try? await Task.sleep(for: $0) }
 
     /// 目标快照的唯一写入口：pullState 与 SSE 的 targets 帧都经这里，工作计时随之更新。
+    /// SSE targets 帧的写入计数（只在 applyTargetsFrame 递增）。
+    @ObservationIgnored private var targetsFrameWrites = 0
+    /// 权威同步的发起序号与最近一次采用了自己 targets 的 GET 的序号（只用于排序，视图不订阅，C7）。
+    @ObservationIgnored private var getSerial = 0
+    @ObservationIgnored private var appliedGetSerial = 0
     func applyStateSnapshot(_ s: BridgeState, now: Date = Date()) {
         state = s
         noteBridgeIdentity()
@@ -1256,6 +1320,7 @@ final class MacSession {
     func applyTargetsFrame(_ t: [TargetSummary], spaces: [SpaceInfo]?, currentBlocked blocked: [CurrentBlocked]? = nil, currentBlockedFresh fresh: Bool? = nil, observation: BridgeObservation? = nil, now: Date = Date()) {
         currentBlocked = blocked
         currentBlockedFresh = fresh
+        targetsFrameWrites &+= 1
         state?.targets = t
         state?.spaces = spaces
         state?.observation = observation
@@ -1308,12 +1373,29 @@ final class MacSession {
     func pullState() async throws { // 非 private：测试直接走权威同步入口
         let gen = sessionGen
         let rev = deviceRevision
+        getSerial &+= 1
+        let mySerial = getSerial
+        let frames = targetsFrameWrites
         let seqStart = sseSeq
         guard var s = try await fetchState() else { return }
         guard gen == sessionGen else { throw CancellationError() }
         let deviceSuperseded = rev != deviceRevision
         if deviceSuperseded { s.device = device } // 期间有更新的 device 帧：保留它，state.device 同步成一致
+        // 保留当前 targets 的条件：期间有 SSE targets 帧写入，或已有更晚发起的 GET 被采用。GET 自己的应用不算更新的写入。
+        // GET 与 SSE 没有共同的数据版本：SSE 帧先于或晚于 GET 都可能短暂显示旧值；依赖 Bridge hub 在下一次轮询推送内容不同的新帧收敛（hub 不重发同一内容）。
+        // 必须防住的是“新 SSE 帧之后被旧 GET 覆盖”，因为 hub 不会再发同一帧，旧值会永久停留。
+        let keepTargets = targetsFrameWrites != frames || appliedGetSerial > mySerial
+        if keepTargets { // 保留当前目标及与其同批的字段，旧 GET 不回退
+            s.targets = state?.targets ?? []
+            s.spaces = state?.spaces
+            s.observation = state?.observation
+            s.currentBlocked = currentBlocked
+            s.currentBlockedFresh = currentBlockedFresh
+        } else {
+            appliedGetSerial = mySerial
+        }
         applyStateSnapshot(s)
+        awaitingFreshState = false
         merge(s.history.items)
         let snapshotKeys = (s.commands ?? []).map(\.key)
         let touchedKeys = Set(snapshotKeys.filter { (lastFactSeq[$0] ?? 0) > seqStart })

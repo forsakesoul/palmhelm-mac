@@ -221,6 +221,8 @@ private struct ThreadColumn: View {
     @State private var detailsShown = false // 线程详情 popover 展示期间头部恒显示
     @State private var revealNote: (ok: Bool, message: LText)?
     @State private var revealGen = 0
+    @State private var threadRenameShown = false // 「重命名对话…」弹层（#134）；连接切换即关闭
+    @State private var threadRenameScope: LedgerScope? // 打开弹层时捕获的改名范围；提交前由会话层复核
     @State private var windowVisible = true // 窗口未被遮挡（WindowVisibilityReader）：隐藏、最小化或完全遮挡时为假
     @State private var stuck = true // 对话滚动区是否贴底（G：只有贴底才跟随内容增高）
     @State private var userScrolling = false // 用户正在拖动 / 惯性滚动（S2：此时以几何为准）
@@ -587,6 +589,8 @@ private struct ThreadColumn: View {
             if !session.canControl { Text("此设备只有查看权限，不能派发任务") }
             // 只读设备也能查看；不包在 canControl 禁用里。
             Button("消息账本") { ledger = session.ledgerScope(threadId) }.disabled(session.ledgerScope(threadId) == nil)
+            Button("重命名对话…") { threadRenameScope = session.titleScope(threadId); threadRenameShown = true }.disabled(!session.canControl)
+            if !session.canControl { Text("此设备只有查看权限，不能改名") }
             if let t = target {
                 // 对象是这个线程自己（稳定 targetId），与飞书当前绑定无关；只读 / 离线 / 暂停时禁用并给原因。
                 Divider()
@@ -606,7 +610,13 @@ private struct ThreadColumn: View {
             IssueTaskSheet(preselectedTargetId: threadId, onAccepted: { id in session.selectTarget(id) },
                            onAbandoned: { threadIssueNote = $0; threadIssueNoteShown = true }).environment(session)
         }
-        .onChange(of: session.connectionEpoch) { _, _ in threadIssueShown = false } // 连接切换即关闭派发 sheet
+        .sheet(isPresented: $threadRenameShown) {
+            ConversationRenameSheet(current: target?.customTitle, onSave: { value in
+                threadRenameShown = false
+                if let scope = threadRenameScope { saveTitle(scope, value) }
+            }, onCancel: { threadRenameShown = false })
+        }
+        .onChange(of: session.connectionEpoch) { _, _ in threadIssueShown = false; threadRenameShown = false; threadRenameScope = nil } // 连接切换即关闭派发 sheet 与改名弹层
         .sheet(item: $ledger) { scope in ThreadLedgerSheet(scope: scope, title: ThreadIdentity.conversationTitle(target), onClose: { ledger = nil }).environment(session) }
         .onChange(of: session.ledgerScope(threadId)) { _, now in if let l = ledger, l != now { ledger = nil } }
         #if DEBUG
@@ -666,6 +676,18 @@ private struct ThreadColumn: View {
             }
             .layoutPriority(1)
             revealButton(t, compact: compactReveal).layoutPriority(1)
+        }
+    }
+
+    /// 改名结果与「在 Herdr 中显示」共用同一条信息栏提示（4 秒后只清自己这一次的提示）。
+    private func saveTitle(_ scope: LedgerScope, _ value: String?) {
+        Task {
+            let r = await session.setTitle(scope, value)
+            revealGen += 1
+            let gen = revealGen
+            revealNote = r
+            try? await Task.sleep(for: .seconds(4))
+            if revealGen == gen { revealNote = nil }
         }
     }
 
