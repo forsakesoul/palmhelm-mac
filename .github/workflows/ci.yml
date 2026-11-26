@@ -24,6 +24,10 @@ jobs:
       - name: bundle bridge
         run: sh scripts/bundle-bridge.sh
 
+      # 托管镜像没有预装 xcodegen（本机是 brew 装的）
+      - name: install xcodegen
+        run: brew install xcodegen
+
       - name: xcodegen generate
         run: xcodegen generate
 
