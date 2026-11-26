@@ -203,15 +203,20 @@ final class NotchInteractionStore {
     static let shared = NotchInteractionStore()
     static let key = "palmhelm.notchExpansionTrigger"
     static let enabledKey = "palmhelm.notchEnabled"
+    static let aboveOthersKey = "palmhelm.notchAboveOthers"
     private let defaults: UserDefaults
     var trigger: NotchExpansionTrigger { didSet { defaults.set(trigger.rawValue, forKey: Self.key) } }
     /// 「在刘海显示 Palmhelm」（#12）：关掉后把刘海让给 Vibe Island 等别的刘海 App，待答走菜单栏和主窗口。默认开。
     var enabled: Bool { didSet { defaults.set(enabled, forKey: Self.enabledKey); if enabled != oldValue { onEnabledChange?() } } }
     @ObservationIgnored var onEnabledChange: (() -> Void)?
+    /// 「刘海岛显示在其他刘海应用之上」（h29c）：开 = 面板层级高于普通状态栏窗口，关 = 普通状态栏层级。默认开。只改层级，不拆窗。
+    var aboveOthers: Bool { didSet { defaults.set(aboveOthers, forKey: Self.aboveOthersKey); if aboveOthers != oldValue { onLevelChange?() } } }
+    @ObservationIgnored var onLevelChange: (() -> Void)?
     init(defaults: UserDefaults = AppDefaults.standard) {
         self.defaults = defaults
         trigger = defaults.string(forKey: Self.key).flatMap(NotchExpansionTrigger.init(rawValue:)) ?? .hover
         enabled = defaults.object(forKey: Self.enabledKey) as? Bool ?? true
+        aboveOthers = defaults.object(forKey: Self.aboveOthersKey) as? Bool ?? true
     }
 }
 

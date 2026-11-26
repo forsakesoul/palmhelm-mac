@@ -263,6 +263,10 @@ private struct AppearanceSettings: View {
                 Toggle("在刘海显示 Palmhelm", isOn: $interaction.enabled)
                 Text("关闭后 Palmhelm 不再占用刘海，适合同时使用 Vibe Island 等刘海 App。待答和进度在菜单栏图标和主窗口里查看。")
                     .font(.caption).foregroundStyle(.secondary)
+                Toggle("刘海岛显示在其他刘海应用之上", isOn: $interaction.aboveOthers)
+                    .disabled(!interaction.enabled)
+                Text("开启后提高刘海岛的窗口层级；其他应用若使用更高的窗口层级，仍可能盖住它。")
+                    .font(.caption).foregroundStyle(.secondary)
                 Group {
                     Picker("展开方式", selection: $interaction.trigger) {
                         ForEach(NotchExpansionTrigger.allCases) { Text($0.label).tag($0) }

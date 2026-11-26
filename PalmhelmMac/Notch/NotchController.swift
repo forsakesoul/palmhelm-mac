@@ -90,7 +90,16 @@ final class NotchController {
     init(interaction: NotchInteractionStore = .shared) {
         self.interaction = interaction
         interaction.onEnabledChange = { [weak self] in self?.applyEnabled() }
+        interaction.onLevelChange = { [weak self] in self?.applyLevel() }
     }
+
+    /// 面板层级（h29c）：开 = statusBar + 5（高于普通状态栏窗口）；关 = statusBar。
+    /// ponytail: 只抬到固定层级；更高层级的其他应用仍会盖住刘海，要盖过它们需另行设计。
+    static func panelLevel(aboveOthers: Bool) -> NSWindow.Level {
+        aboveOthers ? NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue + 5) : .statusBar
+    }
+    /// 只改现有面板的层级：不拆窗、不动展开、焦点、鼠标穿透与监视。
+    private func applyLevel() { panel?.level = Self.panelLevel(aboveOthers: interaction.aboveOthers) }
 
     /// 开关只决定刘海显不显示：关 = 整个拆掉（面板、鼠标监视、轮询、收回计时、提示一起停，不留看不见的面板抢输入）；
     /// 开 = 重新挂上，从当前状态开始，不补播关掉期间的提示。不碰 Bridge、审批和设备权限。
@@ -157,7 +166,7 @@ final class NotchController {
         measure(screen)
         let p = NotchPanel(contentRect: NSRect(x: screen.frame.midX - 100, y: screen.frame.maxY - metrics.barHeight, width: 200, height: metrics.barHeight), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         p.onDismiss = { [weak self] in self?.dismissExpansion() }
-        p.level = .statusBar
+        p.level = Self.panelLevel(aboveOthers: interaction.aboveOthers)
         p.isOpaque = false
         p.backgroundColor = .clear
         p.hasShadow = false

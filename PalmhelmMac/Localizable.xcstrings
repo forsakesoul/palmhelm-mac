@@ -5829,6 +5829,40 @@
         }
       }
     },
+    "刘海岛显示在其他刘海应用之上": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show the notch island above other notch apps"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刘海岛显示在其他刘海应用之上"
+          }
+        }
+      }
+    },
+    "开启后提高刘海岛的窗口层级；其他应用若使用更高的窗口层级，仍可能盖住它。": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When on, the notch island uses a higher window level. Apps that use an even higher level can still cover it."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开启后提高刘海岛的窗口层级；其他应用若使用更高的窗口层级，仍可能盖住它。"
+          }
+        }
+      }
+    },
     "在刘海显示 Palmhelm": {
       "extractionState": "extracted_with_value",
       "localizations": {
