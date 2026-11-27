@@ -4,6 +4,11 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+    inputs:
+      only_testing:
+        description: "要跑的测试，空格分隔，例如 PalmhelmMacTests/NotchIslandTests；留空跑全部"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -40,3 +45,16 @@ jobs:
             -destination 'platform=macOS' \
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
             CODE_SIGNING_ALLOWED=NO 2>&1 | tail -200
+
+      # 测试宿主用独立 bundle id（scripts/test-mac.sh），ad-hoc 签名；手动触发的 only_testing 经环境变量传入。
+      - name: xcodebuild test
+        env:
+          ONLY_TESTING: ${{ inputs.only_testing }}
+        run: |
+          set -o pipefail
+          args=""
+          for t in ${ONLY_TESTING:-}; do args="$args -only-testing:$t"; done
+          sh scripts/test-mac.sh \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData-test" \
+            -test-timeouts-enabled YES \
+            CODE_SIGN_IDENTITY=- $args 2>&1 | tail -300
