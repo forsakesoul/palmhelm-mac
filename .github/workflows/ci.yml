@@ -57,4 +57,10 @@ jobs:
           sh scripts/test-mac.sh \
             -derivedDataPath "$RUNNER_TEMP/DerivedData-test" \
             -test-timeouts-enabled YES \
-            CODE_SIGN_IDENTITY=- $args 2>&1 | tail -300
+            CODE_SIGN_IDENTITY=- $args 2>&1 | tee "$RUNNER_TEMP/xcodebuild-test.log" | tail -300
+
+      # tail 只保留末尾；失败时从完整日志里列出失败的用例与断言位置。
+      - name: list test failures
+        if: failure()
+        run: |
+          grep -E "error: |' failed \(" "$RUNNER_TEMP/xcodebuild-test.log" | head -200 || true
