@@ -388,7 +388,8 @@ final class NativeSteerMacTests: XCTestCase {
 
     /// OCR 把间隔点 · 识别成 • 或漏空格：比较前去掉这些字符。
     private func normalized(_ s: String) -> String { s.filter { !" ·•.".contains($0) } }
-    private func shows(_ texts: [String], _ expected: String) -> Bool { texts.contains { normalized($0).contains(normalized(expected)) } }
+    /// OCR 文本是否含有期望文案：两边都经 `copyKey` 归一后精确子串匹配（不做编辑距离容忍）。
+    private func shows(_ texts: [String], _ expected: String) -> Bool { nativeCopyMatches(texts, expected) }
 
     /// Gate4（mine / command 真实视图）：渲染 RowView(.mine / .command)，经 Vision 识别断言三种原生状态文案；旧的「并入当前回合 / 已完成」不得出现。
     func testRowViewsRenderNativeQueuedPendingAndDeliveredCopy() async throws {
@@ -413,3 +414,44 @@ final class NativeSteerMacTests: XCTestCase {
         }
     }
 }
+
+/// OCR 归一：去掉空格与 · • . 、 分隔符，并把 CI 实测的两处误读映射回原字（只做这两条词级替换，不做单字替换）。
+/// 误读来源：CI 的 Vision 把「确认」识别成「路认」、「并入」识别成「井入」。
+private func copyKey(_ s: String) -> String {
+    String(s.filter { !" ·•.、".contains($0) })
+        .replacingOccurrences(of: "路认", with: "确认")
+        .replacingOccurrences(of: "井入", with: "并入")
+}
+
+/// 纯函数（不依赖 Vision）：归一后，任一 OCR 文本包含期望文案即匹配。
+func nativeCopyMatches(_ texts: [String], _ expected: String) -> Bool {
+    let e = copyKey(expected)
+    return texts.contains { copyKey($0).contains(e) }
+}
+
+/// 纯函数负控与 CI 实测误读的正控（不依赖 Vision，每次运行都执行）。
+final class NativeCopyMatcherTests: XCTestCase {
+    private let queued = "补充排队中 · 等待写入工作中终端，未验证"
+    private let delivered = "已送达工作中终端，尚未确认并入本轮"
+
+    func testMissingPendingWordDoesNotMatch() {
+        XCTAssertFalse(nativeCopyMatches(["补充排队中 · 等待写入工作中终端，未验证"], "待确认"))
+    }
+
+    func testVerifiedInsteadOfUnverifiedDoesNotMatch() {
+        XCTAssertFalse(nativeCopyMatches(["补充排队中 · 等待写入工作中终端，已验证"], queued))
+    }
+
+    func testAlreadyConfirmedInsteadOfNotYetConfirmedDoesNotMatch() {
+        XCTAssertFalse(nativeCopyMatches(["已送达工作中终端，已经确认并入本轮"], delivered))
+    }
+
+    /// CI 实测的 4 条误读文本（mine / command 两行、两个状态）：归一后必须匹配。
+    func testObservedCIMisreadsMatch() {
+        XCTAssertTrue(nativeCopyMatches(["我•这台 Mac", "直达的插话", "补充排队中、等待写入工作中终端，未验证"], queued))
+        XCTAssertTrue(nativeCopyMatches(["补充排队中、等待写入工作中终端，未验证", "我·来自设备", "keep-this-text"], queued))
+        XCTAssertTrue(nativeCopyMatches(["我•这台 Mac", "直达的插话", "已送达工作中终端，尚未确认井入本轮"], delivered))
+        XCTAssertTrue(nativeCopyMatches(["已送达工作中终端，尚未路认井入本轮", "我•来自设备", "keep-this-text"], delivered))
+    }
+}
+

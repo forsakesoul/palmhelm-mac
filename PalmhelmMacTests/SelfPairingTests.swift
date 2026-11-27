@@ -19,7 +19,8 @@ private final class FakeHook: HookAdmin, @unchecked Sendable {
     init(_ devices: [HookClient.Device], listFails: Bool = false) { list = Box(devices); self.listFails = listFails }
     func issuePairCode() async throws -> HookClient.PairCode { issued.value += 1; return HookClient.PairCode(code: "123456", expiresT: 0) }
     func setPermission(deviceId: String, _ permission: DevicePermission) async throws {}
-    func devices(all: Bool) async throws -> [HookClient.Device] { if listFails { throw URLError(.cannotConnectToHost) }; return list.value }
+    let listCalls = Box(0)
+    func devices(all: Bool) async throws -> [HookClient.Device] { listCalls.value += 1; if listFails { throw URLError(.cannotConnectToHost) }; return list.value }
     func remove(deviceId: String) async throws { removed.value.append(deviceId) }
 }
 
@@ -134,9 +135,11 @@ final class SelfPairingTests: XCTestCase {
     func testPruneFailureDoesNotBreakTheNewPairing() async {
         let s = session()
         s.state = state()
+        s.preferences.set("old1", forKey: MacSession.selfDeviceIdKey)     // 有上一台记录，清理会去查设备列表
         let hook = FakeHook([], listFails: true)
         _ = counted(s, hook: hook)
         await s.ensurePaired(want: httpsA, hookPort: 1, dataDir: "/tmp/none")
+        XCTAssertEqual(hook.listCalls.value, 1, "清理确实去拿了设备列表（失败分支被执行）")
         XCTAssertEqual(KeychainStore.load(account: KeychainStore.tokenAccount), "new-token")
         XCTAssertEqual(s.link, .connected, "清理失败不影响本次配对")
     }
