@@ -565,7 +565,7 @@ final class MacSession {
     /// 自配对。开始时记下代次；每个等待点之后、任何写入（Keychain、端点、令牌、提权、清理设备）之前复核，
     /// 代次已变（忘记配对、切换模式）时成功与错误一律丢弃，不改连接态。
     private func selfPair(dataDir: String, hookPort: Int, endpoint ep: BridgeEndpoint) async {
-        let gen = sessionGen
+        var gen = sessionGen
         link = .connecting
         diagnose("selfPair 开始")
         let hook = hookFactory(dataDir, hookPort)
@@ -589,6 +589,7 @@ final class MacSession {
             KeychainStore.save(r.token, account: KeychainStore.tokenAccount)
             KeychainStore.saveEndpoint(ep)
             stopStream() // 换了凭据：旧范围立即失效；拿到新 Bridge 的快照之前，改名一律不发（R-b）
+            gen = sessionGen // 这次代次变化是配对自己造成的：之后的复核只对比配对完成后的代次，外部切换仍会使其失效
             awaitingFreshState = true
             token = r.token
             endpoint = ep
